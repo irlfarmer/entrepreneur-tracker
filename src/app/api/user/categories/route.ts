@@ -62,6 +62,73 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { type, oldCategory, newCategory } = await request.json()
+
+    if (!type || !oldCategory || !newCategory) {
+      return NextResponse.json({ error: "Type, oldCategory, and newCategory are required" }, { status: 400 })
+    }
+
+    if (!['expense', 'product'].includes(type)) {
+      return NextResponse.json({ error: "Invalid type. Must be 'expense' or 'product'" }, { status: 400 })
+    }
+
+    // Get current user settings directly from database
+    const user = await getUserByEmail(session.user.email)
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    const currentSettings = user.settings || {}
+
+    // Update category in the appropriate array
+    const fieldName = type === 'expense' ? 'customExpenseCategories' : 'customProductCategories'
+    const currentCategories = currentSettings[fieldName] || []
+    
+    // Check if old category exists
+    if (!currentCategories.includes(oldCategory)) {
+      return NextResponse.json({ error: "Old category not found" }, { status: 404 })
+    }
+
+    // Check if new category already exists
+    if (currentCategories.includes(newCategory)) {
+      return NextResponse.json({ error: "New category already exists" }, { status: 400 })
+    }
+
+    const updatedCategories = currentCategories.map((cat: string) => 
+      cat === oldCategory ? newCategory : cat
+    )
+    
+    const updateData = {
+      [`settings.${fieldName}`]: updatedCategories
+    }
+
+    const result = await updateUser(user._id!.toString(), updateData)
+
+    if (result) {
+      return NextResponse.json({ 
+        success: true, 
+        message: "Category updated successfully",
+        oldCategory,
+        newCategory
+      })
+    } else {
+      return NextResponse.json({ error: "Failed to update category" }, { status: 500 })
+    }
+  } catch (error) {
+    console.error("Error updating category:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const session = await getServerSession(authOptions)

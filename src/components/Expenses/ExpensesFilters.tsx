@@ -1,29 +1,58 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { CalendarIcon, FunnelIcon } from "@heroicons/react/24/outline"
 
-const expenseCategories = [
+const defaultExpenseCategories = [
   "Office Supplies",
   "Marketing",
-  "Equipment", 
+  "Equipment",
   "Travel",
   "Utilities",
+  "Rent",
   "Insurance",
   "Professional Services",
   "Software",
-  "Rent",
+  "Inventory",
+  "Shipping",
   "Other"
 ]
 
 export default function ExpensesFilters() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
   const [category, setCategory] = useState(searchParams.get('category') || '')
+  const [categories, setCategories] = useState<string[]>(defaultExpenseCategories)
+
+  // Fetch user's custom expense categories
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetchUserCategories()
+    }
+  }, [session?.user?.id])
+
+  const fetchUserCategories = async () => {
+    try {
+      const response = await fetch('/api/user/settings')
+      const data = await response.json()
+      
+      if (data.success && data.data?.settings?.customExpenseCategories) {
+        const customCategories = data.data.settings.customExpenseCategories
+        const allCategories = [...defaultExpenseCategories, ...customCategories]
+        // Remove duplicates
+        const uniqueCategories = Array.from(new Set(allCategories))
+        setCategories(uniqueCategories)
+      }
+    } catch (error) {
+      console.error('Error fetching user categories:', error)
+    }
+  }
 
   const updateFilters = (newStartDate?: string, newEndDate?: string, newCategory?: string) => {
     const params = new URLSearchParams()
@@ -67,7 +96,7 @@ export default function ExpensesFilters() {
   const setQuickDate = (days: number) => {
     const end = new Date()
     const start = new Date()
-    start.setDate(start.getDate() - days)
+    start.setDate(end.getDate() - days)
     
     const startDateStr = start.toISOString().split('T')[0]
     const endDateStr = end.toISOString().split('T')[0]
@@ -135,7 +164,7 @@ export default function ExpensesFilters() {
               className="border border-gray-400 rounded-lg px-3 py-2 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Categories</option>
-              {expenseCategories.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>

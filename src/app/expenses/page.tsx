@@ -7,7 +7,7 @@ import ExpensesList from "@/components/Expenses/ExpensesList"
 import ExpensesFilters from "@/components/Expenses/ExpensesFilters"
 import ExpensesStats from "@/components/Expenses/ExpensesStats"
 import Link from "next/link"
-import { PlusIcon } from "@heroicons/react/24/outline"
+import { PlusIcon, Cog6ToothIcon } from "@heroicons/react/24/outline"
 
 interface ExpensesPageProps {
   searchParams: Promise<{
@@ -36,7 +36,14 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
               Track and categorize your business expenses
             </p>
           </div>
-          <div className="mt-4 sm:mt-0">
+          <div className="mt-4 sm:mt-0 flex space-x-3">
+            <Link
+              href="/inventory/settings"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            >
+              <Cog6ToothIcon className="h-5 w-5 mr-2" />
+              Settings
+            </Link>
             <Link
               href="/expenses/add"
               className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
@@ -70,9 +77,9 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
 // Loading skeletons
 function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-white p-6 rounded-lg shadow animate-pulse">
+        <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
           <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
           <div className="h-8 bg-gray-200 rounded w-1/2"></div>
         </div>
@@ -92,12 +99,10 @@ function ExpensesListSkeleton() {
           <div key={i} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg animate-pulse">
             <div className="flex-1">
               <div className="h-5 bg-gray-200 rounded w-1/3 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/4 mb-1"></div>
-              <div className="h-3 bg-gray-200 rounded w-1/6"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
             </div>
             <div className="text-right">
-              <div className="h-4 bg-gray-200 rounded w-16 mb-1"></div>
-              <div className="h-3 bg-gray-200 rounded w-12"></div>
+              <div className="h-4 bg-gray-200 rounded w-16"></div>
             </div>
           </div>
         ))}

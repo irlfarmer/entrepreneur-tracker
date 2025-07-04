@@ -169,12 +169,54 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
                       {product.sku && (
                         <p className="text-xs text-gray-400">SKU: {product.sku}</p>
                       )}
-                      <div className="flex items-center space-x-4 mt-1">
+                      
+                      {/* Additional product details */}
+                      <div className="flex items-center space-x-3 mt-1">
+                        {product.type && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {product.type}
+                          </span>
+                        )}
+                        {product.size && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                            Size: {product.size}
+                          </span>
+                        )}
+                        {product.color && (
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                            {product.color}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Custom fields preview */}
+                      {product.customFields && Object.keys(product.customFields).length > 0 && (
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-xs text-gray-400">Custom:</span>
+                          <div className="flex items-center space-x-2">
+                            {Object.entries(product.customFields).slice(0, 2).map(([key, value]) => (
+                              <span key={key} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                {key}: {String(value)}
+                              </span>
+                            ))}
+                            {Object.keys(product.customFields).length > 2 && (
+                              <span className="text-xs text-gray-400">
+                                +{Object.keys(product.customFields).length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center space-x-4 mt-2">
                         <span className="text-sm text-gray-600">
                           Stock: <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-900'}>{product.currentStock}</span>
                         </span>
                         <span className="text-sm text-gray-600">
                           Profit: <span className={profitMargin > 0 ? 'text-green-600' : 'text-red-600'}>{profitMargin.toFixed(1)}%</span>
+                        </span>
+                        <span className="text-sm text-gray-600">
+                          Value: <span className="text-gray-900">{formatCurrency(product.currentStock * product.salePrice, currencyCode)}</span>
                         </span>
                       </div>
                     </div>
