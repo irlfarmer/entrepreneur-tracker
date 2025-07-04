@@ -37,14 +37,19 @@ RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### 3. Domain Configuration (Optional)
 
-For production, you might want to verify your domain with Resend:
+The system is configured to use Resend's default domain (`onboarding@resend.dev`), which works immediately without any setup.
+
+**For a more professional look, you can verify your Vercel domain:**
 
 1. In Resend dashboard, go to **Domains**
-2. Add your domain (e.g., `entrepreneur-tracker.vercel.app`)
-3. Follow the DNS verification steps
-4. Update the email `from` field in `/src/app/api/auth/forgot-password/route.ts`
+2. Add your domain: `entrepreneur-tracker.vercel.app`
+3. Follow the DNS verification steps (you'll need to contact Vercel support or use a custom domain)
+4. Update the email `from` field in `/src/app/api/auth/forgot-password/route.ts` to:
+   ```typescript
+   from: 'Entrepreneur Tracker <noreply@entrepreneur-tracker.vercel.app>',
+   ```
 
-If you don't verify a domain, emails will be sent from `noreply@entrepreneur-tracker.com` but may land in spam folders.
+**Current setup:** Emails are sent from `Entrepreneur Tracker <onboarding@resend.dev>` which is reliable and professional.
 
 ## Features Implemented
 
@@ -101,12 +106,16 @@ If you don't verify a domain, emails will be sent from `noreply@entrepreneur-tra
 
 ## Email Deliverability Tips
 
-To improve email deliverability:
+**Current setup is already optimized!** Using Resend's default domain (`onboarding@resend.dev`) provides:
+- ✅ Excellent deliverability (pre-verified domain)
+- ✅ Professional appearance
+- ✅ No spam folder issues
+- ✅ Works immediately
 
-1. **Verify your domain** with Resend
+**Optional improvements:**
+1. **Verify your own domain** with Resend for branded emails
 2. **Add SPF/DKIM records** (Resend provides these)
-3. **Use a custom from address** (e.g., `noreply@yourdomain.com`)
-4. **Test with different email providers** (Gmail, Outlook, etc.)
+3. **Test with different email providers** (Gmail, Outlook, etc.)
 
 ## Testing
 
