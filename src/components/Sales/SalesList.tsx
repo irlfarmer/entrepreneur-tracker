@@ -154,7 +154,58 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                       <h4 className="text-lg font-medium text-gray-900">
                         {sale.productName}
                       </h4>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                      
+                      {/* Product attributes as badges */}
+                      <div className="flex items-center space-x-2 mt-2">
+                        {sale.product?.category && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                            {sale.product.category}
+                          </span>
+                        )}
+                        {sale.product?.type && (
+                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                            {sale.product.type}
+                          </span>
+                        )}
+                        {sale.product?.size && (
+                          <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
+                            Size: {sale.product.size}
+                          </span>
+                        )}
+                        {sale.product?.color && (
+                          <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
+                            {sale.product.color}
+                          </span>
+                        )}
+                        {sale.product?.sku && (
+                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-xs font-medium">
+                            SKU: {sale.product.sku}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Custom fields preview */}
+                      {sale.product?.customFields && Object.keys(sale.product.customFields).length > 0 && (
+                        <div className="flex items-center space-x-2 mt-2">
+                          {Object.entries(sale.product.customFields)
+                            .slice(0, 2)
+                            .map(([key, value]) => (
+                              <span 
+                                key={key}
+                                className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-md text-xs"
+                              >
+                                {key}: {value}
+                              </span>
+                            ))}
+                          {Object.keys(sale.product.customFields).length > 2 && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs">
+                              +{Object.keys(sale.product.customFields).length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
                         <span>Qty: {sale.quantity}</span>
                         <span>@{formatCurrency(sale.unitSalePrice, currencyCode)}</span>
                         <span>•</span>

@@ -57,16 +57,32 @@ export interface SerializedProduct {
 }
 
 // Sales Types
+export interface SaleItem {
+  productId: ObjectId
+  productName: string
+  quantity: number
+  unitSalePrice: number
+  unitCostPrice: number
+  lineTotal: number
+  lineProfit: number
+}
+
 export interface Sale {
   _id?: ObjectId
   userId: ObjectId
-  productId: ObjectId
-  productName: string // Denormalized for easier queries
+  // Legacy fields for backward compatibility
+  productId?: ObjectId
+  productName?: string
+  quantity?: number
+  unitSalePrice?: number
+  unitCostPrice?: number
+  // New multi-product fields
+  items: SaleItem[]
+  customerName?: string
   saleDate: Date
-  quantity: number
-  unitSalePrice: number
-  unitCostPrice: number // Copied from product at time of sale
   saleExpenses: number
+  totalSales: number
+  totalCogs: number
   totalProfit: number
   notes?: string
   createdAt: Date
@@ -81,6 +97,7 @@ export interface Expense {
   amount: number
   expenseDate: Date
   receiptUrl?: string
+  notes?: string
   createdAt: Date
 }
 

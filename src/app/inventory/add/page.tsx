@@ -6,11 +6,31 @@ import ProductForm from "@/components/Inventory/ProductForm"
 import Link from "next/link"
 import { ArrowLeftIcon } from "@heroicons/react/24/outline"
 
-export default async function AddProductPage() {
+interface AddProductPageProps {
+  searchParams: Promise<{
+    duplicate?: string
+    data?: string
+  }>
+}
+
+export default async function AddProductPage({ searchParams }: AddProductPageProps) {
   const session = await getServerSession(authOptions)
 
   if (!session) {
     redirect("/auth/signin")
+  }
+
+  // Handle duplicate functionality
+  const resolvedSearchParams = await searchParams
+  const isDuplicate = resolvedSearchParams.duplicate === 'true'
+  let duplicateData = null
+
+  if (isDuplicate && resolvedSearchParams.data) {
+    try {
+      duplicateData = JSON.parse(resolvedSearchParams.data)
+    } catch (e) {
+      console.error('Error parsing duplicate data:', e)
+    }
   }
 
   return (
@@ -28,15 +48,20 @@ export default async function AddProductPage() {
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Add New Product</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isDuplicate ? 'Duplicate Product' : 'Add New Product'}
+          </h1>
           <p className="mt-2 text-gray-600">
-            Add a new product to your inventory with pricing and stock information.
+            {isDuplicate 
+              ? 'Create a new product based on an existing one.'
+              : 'Add a new product to your inventory with pricing and stock information.'
+            }
           </p>
         </div>
 
         {/* Product Form */}
         <div className="bg-white rounded-lg shadow">
-          <ProductForm />
+          <ProductForm duplicateData={duplicateData} />
         </div>
       </div>
     </DashboardLayout>

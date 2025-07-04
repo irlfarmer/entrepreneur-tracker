@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { Expense } from "@/lib/types"
 import { useCurrency } from "@/hooks/useCurrency"
+import Link from "next/link"
 import {
   PencilIcon,
   TrashIcon,
@@ -176,18 +177,20 @@ export default function ExpensesList({ userId, searchParams }: ExpensesListProps
 
                   {/* Actions */}
                   <div className="flex items-center space-x-2">
-                    <button
+                    <Link
+                      href={`/expenses/${expense._id?.toString()}`}
                       className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
                       title="View Details"
                     >
                       <EyeIcon className="h-5 w-5" />
-                    </button>
-                    <button
+                    </Link>
+                    <Link
+                      href={`/expenses/${expense._id?.toString()}/edit`}
                       className="p-2 text-gray-400 hover:text-green-600 transition-colors"
                       title="Edit Expense"
                     >
                       <PencilIcon className="h-5 w-5" />
-                    </button>
+                    </Link>
                     <button
                       onClick={() => handleDelete(expense._id!.toString())}
                       className="p-2 text-gray-400 hover:text-red-600 transition-colors"

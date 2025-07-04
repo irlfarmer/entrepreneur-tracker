@@ -5,11 +5,13 @@ import Link from "next/link"
 import { formatCurrency, calculateProfitMargin } from "@/lib/utils"
 import { Product } from "@/lib/types"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useRouter } from "next/navigation"
 import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  DocumentDuplicateIcon
 } from "@heroicons/react/24/outline"
 
 interface ProductListProps {
@@ -26,6 +28,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     async function fetchProducts() {
@@ -71,6 +74,29 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
     } catch (err) {
       alert('Failed to delete product')
     }
+  }
+
+  const handleDuplicate = (product: Product) => {
+    // Encode the product data to pass as URL parameters
+    const productData = {
+      name: `${product.name} (Copy)`,
+      category: product.category,
+      type: product.type || '',
+      size: product.size || '',
+      color: product.color || '',
+      sku: product.sku ? `${product.sku}-COPY` : '',
+      costPrice: product.costPrice,
+      salePrice: product.salePrice,
+      currentStock: 0, // Reset stock for duplicate
+      customFields: product.customFields || {}
+    }
+    
+    // Navigate to add page with duplicate data
+    const params = new URLSearchParams()
+    params.set('duplicate', 'true')
+    params.set('data', JSON.stringify(productData))
+    
+    router.push(`/inventory/add?${params.toString()}`)
   }
 
   if (loading || currencyLoading) {
@@ -249,6 +275,13 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
                       >
                         <PencilIcon className="h-5 w-5" />
                       </Link>
+                      <button
+                        onClick={() => handleDuplicate(product)}
+                        className="p-2 text-gray-400 hover:text-purple-600 transition-colors"
+                        title="Duplicate Product"
+                      >
+                        <DocumentDuplicateIcon className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => handleDelete(product._id!.toString())}
                         className="p-2 text-gray-400 hover:text-red-600 transition-colors"

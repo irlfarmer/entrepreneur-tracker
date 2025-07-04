@@ -9,6 +9,7 @@ import { useCurrency } from "@/hooks/useCurrency"
 interface ProductFormProps {
   product?: Product
   isEditing?: boolean
+  duplicateData?: any
 }
 
 interface CustomField {
@@ -29,7 +30,7 @@ const defaultCategories = [
   "Other"
 ]
 
-export default function ProductForm({ product, isEditing = false }: ProductFormProps) {
+export default function ProductForm({ product, isEditing = false, duplicateData }: ProductFormProps) {
   const router = useRouter()
   const { symbol: currencySymbol } = useCurrency()
   const [loading, setLoading] = useState(false)
@@ -41,18 +42,50 @@ export default function ProductForm({ product, isEditing = false }: ProductFormP
   const [newField, setNewField] = useState<CustomField>({ name: "", type: "text" })
   const [newFieldOption, setNewFieldOption] = useState("")
   
-  const [formData, setFormData] = useState({
-    name: product?.name || "",
-    category: product?.category || "",
-    type: product?.type || "",
-    size: product?.size || "",
-    color: product?.color || "",
-    sku: product?.sku || "",
-    costPrice: product?.costPrice?.toString() || "",
-    salePrice: product?.salePrice?.toString() || "",
-    currentStock: product?.currentStock?.toString() || "",
-    customFieldValues: (product as any)?.customFieldValues || {}
-  })
+  const getInitialFormData = () => {
+    if (duplicateData) {
+      return {
+        name: duplicateData.name || "",
+        category: duplicateData.category || "",
+        type: duplicateData.type || "",
+        size: duplicateData.size || "",
+        color: duplicateData.color || "",
+        sku: duplicateData.sku || "",
+        costPrice: duplicateData.costPrice?.toString() || "",
+        salePrice: duplicateData.salePrice?.toString() || "",
+        currentStock: duplicateData.currentStock?.toString() || "",
+        customFieldValues: duplicateData.customFields || {}
+      }
+    } else if (product) {
+      return {
+        name: product.name || "",
+        category: product.category || "",
+        type: product.type || "",
+        size: product.size || "",
+        color: product.color || "",
+        sku: product.sku || "",
+        costPrice: product.costPrice?.toString() || "",
+        salePrice: product.salePrice?.toString() || "",
+        currentStock: product.currentStock?.toString() || "",
+        customFieldValues: (product as any)?.customFieldValues || {}
+      }
+    } else {
+      return {
+        name: "",
+        category: "",
+        type: "",
+        size: "",
+        color: "",
+        sku: "",
+        costPrice: "",
+        salePrice: "",
+        currentStock: "",
+        customFieldValues: {}
+      }
+    }
+  }
+  
+  const [formData, setFormData] = useState(getInitialFormData())
 
   useEffect(() => {
     fetchUserSettings()

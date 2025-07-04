@@ -132,14 +132,28 @@ export async function createSale(saleData: Omit<Sale, '_id' | 'createdAt'>) {
   
   const result = await db.collection(COLLECTIONS.SALES).insertOne(sale)
   
-  // Update product stock
-  await db.collection(COLLECTIONS.PRODUCTS).updateOne(
-    { _id: new ObjectId(saleData.productId) },
-    { 
-      $inc: { currentStock: -saleData.quantity },
-      $set: { updatedAt: new Date() }
+  // Update product stock for each item in the sale
+  if (saleData.items && saleData.items.length > 0) {
+    // Multi-product sale
+    for (const item of saleData.items) {
+      await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+        { _id: new ObjectId(item.productId) },
+        { 
+          $inc: { currentStock: -item.quantity },
+          $set: { updatedAt: new Date() }
+        }
+      )
     }
-  )
+  } else if (saleData.productId && saleData.quantity) {
+    // Legacy single-product sale
+    await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+      { _id: new ObjectId(saleData.productId) },
+      { 
+        $inc: { currentStock: -saleData.quantity },
+        $set: { updatedAt: new Date() }
+      }
+    )
+  }
   
   return result.insertedId
 }
@@ -154,6 +168,58 @@ export async function getSales(userId: string, filters?: any) {
     .toArray() as Sale[]
 }
 
+export async function getSalesWithProductDetails(userId: string, filters?: any) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  
+  const matchStage: any = { userId: new ObjectId(userId) }
+  
+  // Add filters to match stage
+  if (filters) {
+    Object.keys(filters).forEach(key => {
+      matchStage[key] = filters[key]
+    })
+  }
+  
+  const pipeline = [
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: COLLECTIONS.PRODUCTS,
+        localField: 'productId',
+        foreignField: '_id',
+        as: 'productDetails'
+      }
+    },
+    {
+      $unwind: {
+        path: '$productDetails',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $addFields: {
+        product: {
+          category: '$productDetails.category',
+          type: '$productDetails.type',
+          size: '$productDetails.size',
+          color: '$productDetails.color',
+          sku: '$productDetails.sku',
+          customFields: '$productDetails.customFields'
+        }
+      }
+    },
+    {
+      $project: {
+        productDetails: 0  // Remove the temporary productDetails field
+      }
+    },
+    { $sort: { saleDate: -1 } }
+  ]
+  
+  return await db.collection(COLLECTIONS.SALES).aggregate(pipeline).toArray()
+}
+
 export async function getSaleById(saleId: string) {
   const client = await clientPromise
   const db = client.db(DB_NAME)
@@ -161,6 +227,129 @@ export async function getSaleById(saleId: string) {
   return await db.collection(COLLECTIONS.SALES).findOne({ 
     _id: new ObjectId(saleId) 
   }) as Sale | null
+}
+
+export async function updateSale(saleId: string, updateData: Partial<Sale>) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  
+  // Get the original sale to calculate stock differences
+  const originalSale = await getSaleById(saleId)
+  if (!originalSale) {
+    throw new Error('Sale not found')
+  }
+  
+  const result = await db.collection(COLLECTIONS.SALES).updateOne(
+    { _id: new ObjectId(saleId) },
+    { 
+      $set: { 
+        ...updateData,
+        updatedAt: new Date() 
+      } 
+    }
+  )
+  
+  // Update inventory based on changes
+  if (updateData.items && updateData.items.length > 0) {
+    // Multi-product sale update
+    
+    // First, revert the original sale's stock changes
+    if (originalSale.items && originalSale.items.length > 0) {
+      for (const item of originalSale.items) {
+        await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+          { _id: new ObjectId(item.productId) },
+          { 
+            $inc: { currentStock: item.quantity }, // Add back the original quantity
+            $set: { updatedAt: new Date() }
+          }
+        )
+      }
+    } else if (originalSale.productId && originalSale.quantity) {
+      // Legacy single-product revert
+      await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+        { _id: new ObjectId(originalSale.productId) },
+        { 
+          $inc: { currentStock: originalSale.quantity }, // Add back the original quantity
+          $set: { updatedAt: new Date() }
+        }
+      )
+    }
+    
+    // Then apply the new sale's stock changes
+    for (const item of updateData.items) {
+      await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+        { _id: new ObjectId(item.productId) },
+        { 
+          $inc: { currentStock: -item.quantity }, // Subtract the new quantity
+          $set: { updatedAt: new Date() }
+        }
+      )
+    }
+  } else if (updateData.productId && updateData.quantity) {
+    // Legacy single-product update
+    
+    // Revert original stock change
+    if (originalSale.productId && originalSale.quantity) {
+      await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+        { _id: new ObjectId(originalSale.productId) },
+        { 
+          $inc: { currentStock: originalSale.quantity },
+          $set: { updatedAt: new Date() }
+        }
+      )
+    }
+    
+    // Apply new stock change
+    await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+      { _id: new ObjectId(updateData.productId) },
+      { 
+        $inc: { currentStock: -updateData.quantity },
+        $set: { updatedAt: new Date() }
+      }
+    )
+  }
+  
+  return result.modifiedCount > 0
+}
+
+export async function deleteSale(saleId: string) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  
+  // Get the sale to revert stock changes
+  const sale = await getSaleById(saleId)
+  if (!sale) {
+    throw new Error('Sale not found')
+  }
+  
+  // Revert stock changes
+  if (sale.items && sale.items.length > 0) {
+    // Multi-product sale
+    for (const item of sale.items) {
+      await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+        { _id: new ObjectId(item.productId) },
+        { 
+          $inc: { currentStock: item.quantity }, // Add back the quantity
+          $set: { updatedAt: new Date() }
+        }
+      )
+    }
+  } else if (sale.productId && sale.quantity) {
+    // Legacy single-product sale
+    await db.collection(COLLECTIONS.PRODUCTS).updateOne(
+      { _id: new ObjectId(sale.productId) },
+      { 
+        $inc: { currentStock: sale.quantity }, // Add back the quantity
+        $set: { updatedAt: new Date() }
+      }
+    )
+  }
+  
+  const result = await db.collection(COLLECTIONS.SALES).deleteOne({ 
+    _id: new ObjectId(saleId) 
+  })
+  
+  return result.deletedCount > 0
 }
 
 // Expense Operations
@@ -185,6 +374,43 @@ export async function getExpenses(userId: string, filters?: any) {
   return await db.collection(COLLECTIONS.EXPENSES).find(query)
     .sort({ expenseDate: -1 })
     .toArray() as Expense[]
+}
+
+export async function getExpenseById(expenseId: string) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  
+  return await db.collection(COLLECTIONS.EXPENSES).findOne({ 
+    _id: new ObjectId(expenseId) 
+  }) as Expense | null
+}
+
+export async function updateExpense(expenseId: string, updateData: Partial<Expense>) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  
+  const result = await db.collection(COLLECTIONS.EXPENSES).updateOne(
+    { _id: new ObjectId(expenseId) },
+    { 
+      $set: { 
+        ...updateData,
+        updatedAt: new Date() 
+      } 
+    }
+  )
+  
+  return result.modifiedCount > 0
+}
+
+export async function deleteExpense(expenseId: string) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  
+  const result = await db.collection(COLLECTIONS.EXPENSES).deleteOne({ 
+    _id: new ObjectId(expenseId) 
+  })
+  
+  return result.deletedCount > 0
 }
 
 // Dashboard Operations

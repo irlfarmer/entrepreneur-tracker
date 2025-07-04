@@ -4,9 +4,12 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { PlusIcon, XMarkIcon } from "@heroicons/react/24/outline"
 import { useCurrency } from "@/hooks/useCurrency"
+import { Expense } from "@/lib/types"
 
 interface ExpenseFormProps {
   userId: string
+  expense?: Expense
+  isEditing?: boolean
 }
 
 const defaultExpenseCategories = [
@@ -24,7 +27,7 @@ const defaultExpenseCategories = [
   "Other"
 ]
 
-export default function ExpenseForm({ userId }: ExpenseFormProps) {
+export default function ExpenseForm({ userId, expense, isEditing = false }: ExpenseFormProps) {
   const router = useRouter()
   const { symbol: currencySymbol } = useCurrency()
   const [loading, setLoading] = useState(false)
@@ -32,11 +35,11 @@ export default function ExpenseForm({ userId }: ExpenseFormProps) {
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [newCategory, setNewCategory] = useState("")
   const [formData, setFormData] = useState({
-    description: "",
-    amount: "",
-    category: "",
-    date: new Date().toISOString().split('T')[0], // Today's date
-    notes: ""
+    description: expense?.description || "",
+    amount: expense?.amount?.toString() || "",
+    category: expense?.category || "",
+    date: expense?.expenseDate ? new Date(expense.expenseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    notes: expense?.notes || ""
   })
 
   useEffect(() => {
@@ -101,28 +104,35 @@ export default function ExpenseForm({ userId }: ExpenseFormProps) {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/expenses', {
-        method: 'POST',
+      const url = isEditing ? `/api/expenses/${expense?._id}` : '/api/expenses'
+      const method = isEditing ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           ...formData,
           amount: parseFloat(formData.amount),
-          date: new Date(formData.date)
+          expenseDate: new Date(formData.date)
         })
       })
 
       const data = await response.json()
 
       if (data.success) {
-        router.push('/expenses')
+        if (isEditing) {
+          router.push(`/expenses/${expense?._id}`)
+        } else {
+          router.push('/expenses')
+        }
         router.refresh()
       } else {
-        alert(data.error || 'Failed to add expense')
+        alert(data.error || `Failed to ${isEditing ? 'update' : 'add'} expense`)
       }
     } catch (error) {
-      alert('Failed to add expense')
+      alert(`Failed to ${isEditing ? 'update' : 'add'} expense`)
     } finally {
       setLoading(false)
     }
