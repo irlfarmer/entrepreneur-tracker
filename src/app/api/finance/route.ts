@@ -25,6 +25,28 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise
     const db = client.db('entrepreneur-tracker')
 
+    // Check if user has any data first to avoid unnecessary queries
+    const hasAnyData = await Promise.race([
+      db.collection('sales').countDocuments({ userId: new ObjectId(userId) }, { limit: 1 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+    ]).catch(() => 0)
+
+    // If no data exists, return empty finance data immediately
+    if (hasAnyData === 0) {
+      const emptyFinanceData = {
+        totalSales: 0,
+        totalCogs: 0,
+        saleRelatedExpenses: 0,
+        businessExpenses: 0,
+        grossProfit: 0,
+        netProfit: 0,
+        topCategory: null,
+        topProduct: null,
+        monthlyData: []
+      }
+      return NextResponse.json({ success: true, data: emptyFinanceData })
+    }
+
     // Create date filters
     const currentYear = year ? parseInt(year) : new Date().getFullYear()
     const currentMonth = month ? parseInt(month) : new Date().getMonth()
@@ -40,28 +62,37 @@ export async function GET(request: NextRequest) {
       endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59)
     }
 
-    // Get sales data
-    const salesData = await db.collection('sales').find({
-      userId: new ObjectId(userId),
-      saleDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    }).toArray()
+    // Get sales data with timeout
+    const salesData = await Promise.race([
+      db.collection('sales').find({
+        userId: new ObjectId(userId),
+        saleDate: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }).toArray(),
+      new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Sales query timeout')), 5000))
+    ]).catch(() => [])
 
-    // Get expense data
-    const expenseData = await db.collection('expenses').find({
-      userId: new ObjectId(userId),
-      expenseDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    }).toArray()
+    // Get expense data with timeout
+    const expenseData = await Promise.race([
+      db.collection('expenses').find({
+        userId: new ObjectId(userId),
+        expenseDate: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }).toArray(),
+      new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Expense query timeout')), 5000))
+    ]).catch(() => [])
 
-    // Get product data for categories
-    const productData = await db.collection('products').find({
-      userId: new ObjectId(userId)
-    }).toArray()
+    // Get product data for categories with timeout
+    const productData = await Promise.race([
+      db.collection('products').find({
+        userId: new ObjectId(userId)
+      }).toArray(),
+      new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Product query timeout')), 5000))
+    ]).catch(() => [])
 
     // Calculate metrics
     const totalSales = salesData.reduce((sum: number, sale: any) => sum + (sale.quantity * sale.unitSalePrice), 0)

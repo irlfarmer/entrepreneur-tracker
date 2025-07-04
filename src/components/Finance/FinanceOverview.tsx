@@ -24,8 +24,8 @@ interface FinanceData {
   businessExpenses: number
   grossProfit: number
   netProfit: number
-  topCategory: { name: string; revenue: number; profit: number }
-  topProduct: { name: string; revenue: number; profit: number; quantity: number }
+  topCategory: { name: string; revenue: number; profit: number } | null
+  topProduct: { name: string; revenue: number; profit: number; quantity: number } | null
   monthlyData: Array<{
     month: string
     year: number
@@ -59,14 +59,47 @@ export default function FinanceOverview({ userId }: FinanceOverviewProps) {
         viewType
       })
       
-      const response = await fetch(`/api/finance?${params}`)
+      // Add timeout to prevent hanging
+      const response = await Promise.race([
+        fetch(`/api/finance?${params}`),
+        new Promise<Response>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        )
+      ])
+      
       const data = await response.json()
       
       if (data.success) {
         setFinanceData(data.data)
+      } else {
+        console.error('Finance API error:', data.error)
+        // Set empty data as fallback
+        setFinanceData({
+          totalSales: 0,
+          totalCogs: 0,
+          saleRelatedExpenses: 0,
+          businessExpenses: 0,
+          grossProfit: 0,
+          netProfit: 0,
+          topCategory: null,
+          topProduct: null,
+          monthlyData: []
+        })
       }
     } catch (error) {
       console.error('Error fetching finance data:', error)
+      // Set empty data as fallback
+      setFinanceData({
+        totalSales: 0,
+        totalCogs: 0,
+        saleRelatedExpenses: 0,
+        businessExpenses: 0,
+        grossProfit: 0,
+        netProfit: 0,
+        topCategory: null,
+        topProduct: null,
+        monthlyData: []
+      })
     } finally {
       setLoading(false)
     }

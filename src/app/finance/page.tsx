@@ -12,7 +12,22 @@ export default async function FinancePage() {
     redirect('/auth/signin')
   }
 
-  const user = await getUserByEmail(session.user.email)
+  let user: any
+  try {
+    // Add timeout to prevent hanging on MongoDB connection
+    user = await Promise.race([
+      getUserByEmail(session.user.email),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
+    ])
+  } catch (error) {
+    console.error('Database connection error:', error)
+    // Fallback: create a temporary user object from session
+    user = {
+      _id: session.user.id || 'temp-id',
+      email: session.user.email,
+      companyName: session.user.companyName || 'My Company'
+    }
+  }
   
   if (!user) {
     redirect('/auth/signin')

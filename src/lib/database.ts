@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb'
 import clientPromise from './mongodb'
 import type { User, Product, Sale, Expense, DashboardMetrics } from './types'
+import crypto from 'crypto'
 
 // Database Collections
 const DB_NAME = 'entrepreneur-tracker'
@@ -266,4 +267,56 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       totalProfit: p.totalProfit
     }))
   }
+}
+
+// Password reset token functions
+export async function createPasswordResetToken(email: string): Promise<string> {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  const token = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
+  
+  await db.collection('password_reset_tokens').insertOne({
+    email,
+    token,
+    expiresAt,
+    used: false,
+    createdAt: new Date()
+  })
+  
+  return token
+}
+
+export async function verifyPasswordResetToken(token: string): Promise<string | null> {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  const resetToken = await db.collection('password_reset_tokens').findOne({
+    token,
+    used: false,
+    expiresAt: { $gt: new Date() }
+  })
+  
+  if (!resetToken) {
+    return null
+  }
+  
+  return resetToken.email
+}
+
+export async function markPasswordResetTokenAsUsed(token: string): Promise<void> {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  await db.collection('password_reset_tokens').updateOne(
+    { token },
+    { $set: { used: true, usedAt: new Date() } }
+  )
+}
+
+export async function updateUserPassword(email: string, hashedPassword: string): Promise<void> {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  await db.collection(COLLECTIONS.USERS).updateOne(
+    { email },
+    { $set: { password: hashedPassword } }
+  )
 } 
