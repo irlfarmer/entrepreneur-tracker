@@ -67,7 +67,11 @@ export const authOptions: NextAuthOptions = {
               settings: {
                 currency: "USD",
                 timezone: "UTC",
-                enabledFields: ["category", "type", "size", "color"]
+                enabledFields: ["category", "type", "size", "color"],
+                customExpenseCategories: [],
+                customProductCategories: [],
+                customProductFields: [],
+                saleRelatedExpenseCategories: []
               }
             })
           }
