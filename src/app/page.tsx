@@ -53,14 +53,15 @@ export default async function HomePage() {
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
             Perfect for entrepreneurs and small businesses. Track your inventory, 
-            record sales, manage expenses, and see your profits in real-time.
+            record sales, manage expenses, and see your profits in real-time. 
+            <span className="font-semibold text-blue-600">Completely free forever!</span>
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4 mb-12">
             <Link
               href="/auth/signup"
               className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
             >
-              Start Free Trial
+              Get Started its Entirely Free
             </Link>
             <Link
               href="/auth/signin"
