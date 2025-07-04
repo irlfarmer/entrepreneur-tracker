@@ -1,0 +1,12 @@
+# Copy this file to .env.local and fill in your values
+
+# Database (MongoDB Atlas)
+MONGODB_URI=mongodb+srv://username:password@cluster0.mongodb.net/entrepreneur-tracker?retryWrites=true&w=majority
+
+# NextAuth.js
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-super-secret-key-here-use-openssl-rand-base64-32
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret 
