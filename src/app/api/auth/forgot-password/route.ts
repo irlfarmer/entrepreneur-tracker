@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const resetUrl = `${process.env.NEXTAUTH_URL}/auth/reset-password?token=${resetToken}`
     
     await resend.emails.send({
-      from: 'Entrepreneur Tracker <onboarding@resend.dev>',
+      from: 'Entrepreneur Tracker <noreply@quvox.app>',
       to: email,
       subject: 'Reset Your Password - Entrepreneur Tracker',
       html: `
