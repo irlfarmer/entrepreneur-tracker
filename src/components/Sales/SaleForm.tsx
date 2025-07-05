@@ -480,12 +480,94 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select a product</option>
-                      {products.map(product => (
-                        <option key={product._id?.toString()} value={product._id?.toString()}>
-                          {product.name} - Stock: {product.currentStock}
-                        </option>
-                      ))}
+                      {products.map(product => {
+                        const productDetails = []
+                        if (product.category) productDetails.push(product.category)
+                        if (product.type) productDetails.push(product.type)
+                        if (product.size) productDetails.push(`Size: ${product.size}`)
+                        if (product.color) productDetails.push(`Color: ${product.color}`)
+                        if (product.sku) productDetails.push(`SKU: ${product.sku}`)
+                        
+                        const detailsText = productDetails.length > 0 ? ` (${productDetails.join(', ')})` : ''
+                        const stockText = product.currentStock > 0 ? ` - Stock: ${product.currentStock}` : ' - Out of Stock'
+                        
+                        return (
+                          <option 
+                            key={product._id?.toString()} 
+                            value={product._id?.toString()}
+                            disabled={product.currentStock === 0}
+                          >
+                            {product.name}{detailsText}{stockText}
+                          </option>
+                        )
+                      })}
                     </select>
+                    
+                    {/* Enhanced Product Preview */}
+                    {item.productId && item.product && (
+                      <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900 mb-2">{item.product.name}</h4>
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {item.product.category && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                  {item.product.category}
+                                </span>
+                              )}
+                              {item.product.type && (
+                                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                  {item.product.type}
+                                </span>
+                              )}
+                              {item.product.size && (
+                                <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+                                  Size: {item.product.size}
+                                </span>
+                              )}
+                              {item.product.color && (
+                                <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                                  Color: {item.product.color}
+                                </span>
+                              )}
+                              {item.product.sku && (
+                                <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
+                                  SKU: {item.product.sku}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Cost Price:</span>
+                                <span className="font-medium">{currencySymbol}{item.product.costPrice.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Sale Price:</span>
+                                <span className="font-medium">{currencySymbol}{item.product.salePrice.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Available:</span>
+                                <span className={`font-medium ${item.product.currentStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {item.product.currentStock} units
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Profit/Unit:</span>
+                                <span className="font-medium text-green-600">
+                                  {currencySymbol}{(item.product.salePrice - item.product.costPrice).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Line Profit:</span>
+                                <span className={`font-medium ${item.lineProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {currencySymbol}{item.lineProfit.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -530,28 +612,6 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                     </div>
                   </div>
                 </div>
-
-                {/* Product info */}
-                {item.product && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                    <div className="text-sm space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Category:</span>
-                        <span className="font-medium text-gray-900">{item.product.category}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Available Stock:</span>
-                        <span className="font-medium text-gray-900">{item.product.currentStock}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Line Profit:</span>
-                        <span className={`font-medium ${item.lineProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {currencySymbol}{item.lineProfit.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
           </div>
