@@ -58,6 +58,7 @@ interface SaleItem {
   lineTotal: number
   lineProfit: number
   product?: Product
+  categoryFilter?: string
 }
 
 export default function SaleForm({ userId, sale, isEditing = false }: SaleFormProps) {
@@ -70,7 +71,6 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   const [newCategoryName, setNewCategoryName] = useState("")
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [saleItems, setSaleItems] = useState<SaleItem[]>([])
-  const [categoryFilter, setCategoryFilter] = useState<string>("")
   const [formData, setFormData] = useState({
     customerName: sale?.customerName || "",
     saleDate: sale?.saleDate ? new Date(sale.saleDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -90,7 +90,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           unitSalePrice: item.unitSalePrice,
           unitCostPrice: item.unitCostPrice,
           lineTotal: item.lineTotal,
-          lineProfit: item.lineProfit
+          lineProfit: item.lineProfit,
+          categoryFilter: ""
         }))
         setSaleItems(initialItems)
       } else if (sale.productId) {
@@ -103,7 +104,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           unitSalePrice: sale.unitSalePrice || 0,
           unitCostPrice: sale.unitCostPrice || 0,
           lineTotal: (sale.quantity || 1) * (sale.unitSalePrice || 0),
-          lineProfit: ((sale.quantity || 1) * (sale.unitSalePrice || 0)) - ((sale.quantity || 1) * (sale.unitCostPrice || 0))
+          lineProfit: ((sale.quantity || 1) * (sale.unitSalePrice || 0)) - ((sale.quantity || 1) * (sale.unitCostPrice || 0)),
+          categoryFilter: ""
         }
         setSaleItems([legacyItem])
       }
@@ -221,50 +223,48 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   }
 
   const addSaleItem = () => {
-    if (products.length === 0) return
-
     const newItem: SaleItem = {
-      id: Date.now().toString(),
+      id: `item-${Date.now()}`,
       productId: '',
       productName: '',
       quantity: 1,
       unitSalePrice: 0,
       unitCostPrice: 0,
       lineTotal: 0,
-      lineProfit: 0
+      lineProfit: 0,
+      categoryFilter: ""
     }
     setSaleItems([...saleItems, newItem])
   }
 
   const updateSaleItem = (id: string, field: keyof SaleItem, value: string | number) => {
-    setSaleItems(saleItems.map(item => {
-      if (item.id !== id) return item
-
-      const updatedItem = { ...item, [field]: value }
-
-      // If product is changed, update related fields
-      if (field === 'productId') {
-        const product = products.find(p => p._id?.toString() === value)
-        if (product) {
-          updatedItem.productName = product.name
-          updatedItem.unitCostPrice = product.costPrice || 0
-          updatedItem.unitSalePrice = product.salePrice || 0
-          updatedItem.product = product
+    setSaleItems(prevItems => 
+      prevItems.map(item => {
+        if (item.id === id) {
+          const updatedItem = { ...item, [field]: value }
+          
+          // If updating productId, find the product and update related fields
+          if (field === 'productId') {
+            const selectedProduct = products.find(p => p._id?.toString() === value)
+            if (selectedProduct) {
+              updatedItem.productName = selectedProduct.name
+              updatedItem.unitCostPrice = selectedProduct.costPrice
+              updatedItem.unitSalePrice = selectedProduct.salePrice
+              updatedItem.product = selectedProduct
+            }
+          }
+          
+          // Recalculate line totals when quantity or prices change
+          if (field === 'quantity' || field === 'unitSalePrice' || field === 'unitCostPrice') {
+            updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitSalePrice
+            updatedItem.lineProfit = updatedItem.lineTotal - (updatedItem.quantity * updatedItem.unitCostPrice)
+          }
+          
+          return updatedItem
         }
-      }
-
-      // Recalculate line totals
-      if (field === 'quantity' || field === 'unitSalePrice' || field === 'productId') {
-        const quantity = field === 'quantity' ? Number(value) : updatedItem.quantity
-        const unitPrice = field === 'unitSalePrice' ? Number(value) : updatedItem.unitSalePrice
-        const costPrice = updatedItem.unitCostPrice
-
-        updatedItem.lineTotal = quantity * unitPrice
-        updatedItem.lineProfit = (quantity * unitPrice) - (quantity * costPrice)
-      }
-
-      return updatedItem
-    }))
+        return item
+      })
+    )
   }
 
   const removeSaleItem = (id: string) => {
@@ -502,8 +502,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                       Category Filter
                     </label>
                     <select
-                      value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      value={item.categoryFilter}
+                      onChange={(e) => updateSaleItem(item.id, 'categoryFilter', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">All Categories</option>
@@ -526,7 +526,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select a product</option>
-                      {(categoryFilter ? getProductsByCategory(categoryFilter) : products).map(product => {
+                      {(item.categoryFilter ? getProductsByCategory(item.categoryFilter) : products).map(product => {
                         const productDetails = []
                         if (product.category) productDetails.push(product.category)
                         if (product.type) productDetails.push(product.type)
