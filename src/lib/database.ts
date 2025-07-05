@@ -140,20 +140,38 @@ export async function createSale(saleData: Omit<Sale, '_id' | 'createdAt'>) {
     for (const item of saleData.items) {
       await db.collection(COLLECTIONS.PRODUCTS).updateOne(
         { _id: new ObjectId(item.productId) },
-        { 
-          $inc: { currentStock: -item.quantity },
-          $set: { updatedAt: new Date() }
-        }
+        [
+          {
+            $set: {
+              currentStock: {
+                $add: [
+                  { $ifNull: ["$currentStock", 0] },
+                  -(item.quantity || 0)
+                ]
+              },
+              updatedAt: new Date()
+            }
+          }
+        ]
       )
     }
   } else if (saleData.productId && saleData.quantity) {
     // Legacy single-product sale
     await db.collection(COLLECTIONS.PRODUCTS).updateOne(
       { _id: new ObjectId(saleData.productId) },
-      { 
-        $inc: { currentStock: -saleData.quantity },
-        $set: { updatedAt: new Date() }
-      }
+      [
+        {
+          $set: {
+            currentStock: {
+              $add: [
+                { $ifNull: ["$currentStock", 0] },
+                -(saleData.quantity || 0)
+              ]
+            },
+            updatedAt: new Date()
+          }
+        }
+      ]
     )
   }
   
@@ -360,20 +378,38 @@ export async function updateSale(saleId: string, updateData: Partial<Sale>) {
       for (const item of originalSale.items) {
         await db.collection(COLLECTIONS.PRODUCTS).updateOne(
           { _id: new ObjectId(item.productId) },
-          { 
-            $inc: { currentStock: item.quantity }, // Add back the original quantity
-            $set: { updatedAt: new Date() }
-          }
+          [
+            {
+              $set: {
+                currentStock: {
+                  $add: [
+                    { $ifNull: ["$currentStock", 0] },
+                    item.quantity || 0
+                  ]
+                },
+                updatedAt: new Date()
+              }
+            }
+          ]
         )
       }
     } else if (originalSale.productId && originalSale.quantity) {
       // Legacy single-product revert
       await db.collection(COLLECTIONS.PRODUCTS).updateOne(
         { _id: new ObjectId(originalSale.productId) },
-        { 
-          $inc: { currentStock: originalSale.quantity }, // Add back the original quantity
-          $set: { updatedAt: new Date() }
-        }
+        [
+          {
+            $set: {
+              currentStock: {
+                $add: [
+                  { $ifNull: ["$currentStock", 0] },
+                  originalSale.quantity || 0
+                ]
+              },
+              updatedAt: new Date()
+            }
+          }
+        ]
       )
     }
     
@@ -381,10 +417,19 @@ export async function updateSale(saleId: string, updateData: Partial<Sale>) {
     for (const item of updateData.items) {
       await db.collection(COLLECTIONS.PRODUCTS).updateOne(
         { _id: new ObjectId(item.productId) },
-        { 
-          $inc: { currentStock: -item.quantity }, // Subtract the new quantity
-          $set: { updatedAt: new Date() }
-        }
+        [
+          {
+            $set: {
+              currentStock: {
+                $add: [
+                  { $ifNull: ["$currentStock", 0] },
+                  -(item.quantity || 0)
+                ]
+              },
+              updatedAt: new Date()
+            }
+          }
+        ]
       )
     }
   } else if (updateData.productId && updateData.quantity) {
@@ -394,20 +439,38 @@ export async function updateSale(saleId: string, updateData: Partial<Sale>) {
     if (originalSale.productId && originalSale.quantity) {
       await db.collection(COLLECTIONS.PRODUCTS).updateOne(
         { _id: new ObjectId(originalSale.productId) },
-        { 
-          $inc: { currentStock: originalSale.quantity },
-          $set: { updatedAt: new Date() }
-        }
+        [
+          {
+            $set: {
+              currentStock: {
+                $add: [
+                  { $ifNull: ["$currentStock", 0] },
+                  originalSale.quantity || 0
+                ]
+              },
+              updatedAt: new Date()
+            }
+          }
+        ]
       )
     }
     
     // Apply new stock change
     await db.collection(COLLECTIONS.PRODUCTS).updateOne(
       { _id: new ObjectId(updateData.productId) },
-      { 
-        $inc: { currentStock: -updateData.quantity },
-        $set: { updatedAt: new Date() }
-      }
+      [
+        {
+          $set: {
+            currentStock: {
+              $add: [
+                { $ifNull: ["$currentStock", 0] },
+                -(updateData.quantity || 0)
+              ]
+            },
+            updatedAt: new Date()
+          }
+        }
+      ]
     )
   }
   
@@ -430,20 +493,38 @@ export async function deleteSale(saleId: string) {
     for (const item of sale.items) {
       await db.collection(COLLECTIONS.PRODUCTS).updateOne(
         { _id: new ObjectId(item.productId) },
-        { 
-          $inc: { currentStock: item.quantity }, // Add back the quantity
-          $set: { updatedAt: new Date() }
-        }
+        [
+          {
+            $set: {
+              currentStock: {
+                $add: [
+                  { $ifNull: ["$currentStock", 0] },
+                  item.quantity || 0
+                ]
+              },
+              updatedAt: new Date()
+            }
+          }
+        ]
       )
     }
   } else if (sale.productId && sale.quantity) {
     // Legacy single-product sale
     await db.collection(COLLECTIONS.PRODUCTS).updateOne(
       { _id: new ObjectId(sale.productId) },
-      { 
-        $inc: { currentStock: sale.quantity }, // Add back the quantity
-        $set: { updatedAt: new Date() }
-      }
+      [
+        {
+          $set: {
+            currentStock: {
+              $add: [
+                { $ifNull: ["$currentStock", 0] },
+                sale.quantity || 0
+              ]
+            },
+            updatedAt: new Date()
+          }
+        }
+      ]
     )
   }
   

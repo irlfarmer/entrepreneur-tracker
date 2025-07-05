@@ -120,10 +120,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Update product stock (adjust by the difference)
     await db.collection('products').updateOne(
       { _id: new ObjectId(productId) },
-      { 
-        $inc: { currentStock: -stockDifference },
-        $set: { updatedAt: new Date() }
-      }
+      [
+        {
+          $set: {
+            currentStock: {
+              $add: [
+                { $ifNull: ["$currentStock", 0] },
+                -stockDifference
+              ]
+            },
+            updatedAt: new Date()
+          }
+        }
+      ]
     )
 
     return NextResponse.json<ApiResponse>({
@@ -188,14 +197,47 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       }, { status: 500 })
     }
 
-    // Restore product stock
-    await db.collection('products').updateOne(
-      { _id: new ObjectId(sale.productId) },
-      { 
-        $inc: { currentStock: sale.quantity },
-        $set: { updatedAt: new Date() }
+    // Restore product stock - handle null currentStock values
+    if (sale.productId) {
+      await db.collection('products').updateOne(
+        { _id: new ObjectId(sale.productId) },
+        [
+          {
+            $set: {
+              currentStock: {
+                $add: [
+                  { $ifNull: ["$currentStock", 0] },
+                  sale.quantity || 0
+                ]
+              },
+              updatedAt: new Date()
+            }
+          }
+        ]
+      )
+    }
+
+    // Handle multi-product sales
+    if (sale.items && Array.isArray(sale.items)) {
+      for (const item of sale.items) {
+        await db.collection('products').updateOne(
+          { _id: new ObjectId(item.productId) },
+          [
+            {
+              $set: {
+                currentStock: {
+                  $add: [
+                    { $ifNull: ["$currentStock", 0] },
+                    item.quantity || 0
+                  ]
+                },
+                updatedAt: new Date()
+              }
+            }
+          ]
+        )
       }
-    )
+    }
 
     return NextResponse.json<ApiResponse>({
       success: true,

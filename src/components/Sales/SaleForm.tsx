@@ -58,6 +58,7 @@ interface SaleItem {
   lineTotal: number
   lineProfit: number
   product?: Product
+  selectedCategory: string
 }
 
 export default function SaleForm({ userId, sale, isEditing = false }: SaleFormProps) {
@@ -89,7 +90,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           unitSalePrice: item.unitSalePrice,
           unitCostPrice: item.unitCostPrice,
           lineTotal: item.lineTotal,
-          lineProfit: item.lineProfit
+          lineProfit: item.lineProfit,
+          selectedCategory: ''
         }))
         setSaleItems(initialItems)
       } else if (sale.productId) {
@@ -102,7 +104,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           unitSalePrice: sale.unitSalePrice || 0,
           unitCostPrice: sale.unitCostPrice || 0,
           lineTotal: (sale.quantity || 1) * (sale.unitSalePrice || 0),
-          lineProfit: ((sale.quantity || 1) * (sale.unitSalePrice || 0)) - ((sale.quantity || 1) * (sale.unitCostPrice || 0))
+          lineProfit: ((sale.quantity || 1) * (sale.unitSalePrice || 0)) - ((sale.quantity || 1) * (sale.unitCostPrice || 0)),
+          selectedCategory: ''
         }
         setSaleItems([legacyItem])
       }
@@ -119,10 +122,14 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   useEffect(() => {
     if (products.length > 0) {
       setSaleItems(prevItems => 
-        prevItems.map(item => ({
-          ...item,
-          product: products.find(p => p._id?.toString() === item.productId)
-        }))
+        prevItems.map(item => {
+          const product = products.find(p => p._id?.toString() === item.productId)
+          return {
+            ...item,
+            product: product,
+            selectedCategory: product?.category || (product && !product.category ? 'No Category' : item.selectedCategory)
+          }
+        })
       )
     }
   }, [products])
@@ -149,6 +156,30 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
     } catch (error) {
       console.error('Error fetching sale expense categories:', error)
     }
+  }
+
+  // Get unique categories from products
+  const getUniqueCategories = () => {
+    const categories = products
+      .map(product => product.category)
+      .filter((category, index, array) => category && array.indexOf(category) === index)
+      .sort()
+    
+    // Add "No Category" option for products without categories
+    const hasUncategorized = products.some(product => !product.category)
+    if (hasUncategorized) {
+      categories.push('No Category')
+    }
+    
+    return categories
+  }
+
+  // Filter products by category
+  const getProductsByCategory = (category: string) => {
+    if (category === 'No Category') {
+      return products.filter(product => !product.category)
+    }
+    return products.filter(product => product.category === category)
   }
 
   const addSaleExpenseCategory = async () => {
@@ -203,7 +234,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
       unitSalePrice: 0,
       unitCostPrice: 0,
       lineTotal: 0,
-      lineProfit: 0
+      lineProfit: 0,
+      selectedCategory: ''
     }
     setSaleItems([...saleItems, newItem])
   }
@@ -468,7 +500,30 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Category *
+                    </label>
+                    <select
+                      required
+                      value={item.selectedCategory}
+                      onChange={(e) => {
+                        updateSaleItem(item.id, 'selectedCategory', e.target.value)
+                        // Reset product selection when category changes
+                        updateSaleItem(item.id, 'productId', '')
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select a category</option>
+                      {getUniqueCategories().map(category => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Product *
@@ -477,12 +532,14 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                       required
                       value={item.productId}
                       onChange={(e) => updateSaleItem(item.id, 'productId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={!item.selectedCategory}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      <option value="">Select a product</option>
-                      {products.map(product => {
+                      <option value="">
+                        {item.selectedCategory ? 'Select a product' : 'Select category first'}
+                      </option>
+                      {item.selectedCategory && getProductsByCategory(item.selectedCategory).map(product => {
                         const productDetails = []
-                        if (product.category) productDetails.push(product.category)
                         if (product.type) productDetails.push(product.type)
                         if (product.size) productDetails.push(`Size: ${product.size}`)
                         if (product.color) productDetails.push(`Color: ${product.color}`)
@@ -537,7 +594,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                     </div>
                   </div>
 
-                  <div>
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Line Total
                     </label>
