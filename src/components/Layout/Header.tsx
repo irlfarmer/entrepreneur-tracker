@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { Menu, Transition } from "@headlessui/react"
 import { 
@@ -15,8 +15,32 @@ interface HeaderProps {
   onMobileMenuClick: () => void
 }
 
+interface UserData {
+  companyName?: string
+  profileImage?: string
+}
+
 export default function Header({ onMobileMenuClick }: HeaderProps) {
   const { data: session } = useSession()
+  const [userData, setUserData] = useState<UserData | null>(null)
+
+  useEffect(() => {
+    if (session?.user?.email) {
+      fetchUserData()
+    }
+  }, [session?.user?.email])
+
+  const fetchUserData = async () => {
+    try {
+      const response = await fetch('/api/user/settings')
+      const data = await response.json()
+      if (data.success) {
+        setUserData(data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error)
+    }
+  }
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -36,7 +60,7 @@ export default function Header({ onMobileMenuClick }: HeaderProps) {
             <div className="flex items-center lg:ml-0 ml-4">
               <div className="flex-shrink-0">
                 <h1 className="text-xl font-bold text-blue-600">
-                  {session?.user?.companyName || "Sales Tracker"}
+                  {userData?.companyName || session?.user?.companyName || "Sales Tracker"}
                 </h1>
               </div>
             </div>
@@ -53,17 +77,23 @@ export default function Header({ onMobileMenuClick }: HeaderProps) {
                 <Menu.Button className="flex items-center rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                   <span className="sr-only">Open user menu</span>
                   <div className="flex items-center space-x-2">
-                    {session?.user?.image ? (
+                    {userData?.profileImage ? (
                       <img
-                        className="h-8 w-8 rounded-full"
+                        className="h-8 w-8 rounded-full object-cover"
+                        src={userData.profileImage}
+                        alt="Profile"
+                      />
+                    ) : session?.user?.image ? (
+                      <img
+                        className="h-8 w-8 rounded-full object-cover"
                         src={session.user.image}
-                        alt=""
+                        alt="Profile"
                       />
                     ) : (
                       <UserCircleIcon className="h-8 w-8 text-gray-400" />
                     )}
                     <span className="hidden md:block text-sm font-medium text-gray-700">
-                      {session?.user?.name || session?.user?.email}
+                      {userData?.companyName || session?.user?.name || session?.user?.email}
                     </span>
                     <ChevronDownIcon className="h-4 w-4 text-gray-400" />
                   </div>

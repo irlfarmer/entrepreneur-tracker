@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getSaleById } from "@/lib/database"
+import { getSalesWithProductDetails } from "@/lib/database"
 import { serializeMongoObject } from "@/lib/utils"
 import Link from "next/link"
 import DashboardLayout from "@/components/Layout/DashboardLayout"
 import SaleViewClient from "@/components/Sales/SaleViewClient"
+import { ObjectId } from "mongodb"
 
 interface SaleViewPageProps {
   params: Promise<{
@@ -21,7 +22,13 @@ export default async function SaleViewPage({ params }: SaleViewPageProps) {
   }
 
   const { id } = await params
-  const sale = await getSaleById(id)
+  
+  // Use getSalesWithProductDetails to get product details
+  const salesWithDetails = await getSalesWithProductDetails(session.user.id, {
+    _id: new ObjectId(id)
+  })
+  
+  const sale = salesWithDetails[0]
   
   if (!sale) {
     redirect("/sales")

@@ -236,7 +236,7 @@ export default function SaleViewClient({ sale }: SaleViewClientProps) {
                       </div>
                       <div>
                         <span className="text-gray-600">Unit Price:</span>
-                        <span className="font-medium text-gray-900 ml-2">{formatCurrency(item.unitSalePrice, currencyCode)}</span>
+                        <span className="font-medium text-blue-600 ml-2">{formatCurrency(item.unitSalePrice, currencyCode)}</span>
                       </div>
                       <div>
                         <span className="text-gray-600">Unit Cost:</span>
@@ -319,7 +319,7 @@ export default function SaleViewClient({ sale }: SaleViewClientProps) {
                   </div>
                   <div>
                     <span className="text-gray-600">Unit Price:</span>
-                    <span className="font-medium text-gray-900 ml-2">{formatCurrency(sale.unitSalePrice || 0, currencyCode)}</span>
+                    <span className="font-medium text-blue-600 ml-2">{formatCurrency(sale.unitSalePrice || 0, currencyCode)}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Unit Cost:</span>
