@@ -126,13 +126,31 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           const product = products.find(p => p._id?.toString() === item.productId)
           return {
             ...item,
-            product: product,
-            selectedCategory: product?.category || (product && !product.category ? 'No Category' : item.selectedCategory)
+            product: product
           }
         })
       )
     }
   }, [products])
+
+  // Set selectedCategory for existing sales when editing (only run once)
+  useEffect(() => {
+    if (products.length > 0 && saleItems.length > 0 && isEditing) {
+      setSaleItems(prevItems => 
+        prevItems.map(item => {
+          // Only set selectedCategory if it's empty (meaning it's from an existing sale)
+          if (!item.selectedCategory && item.productId) {
+            const product = products.find(p => p._id?.toString() === item.productId)
+            return {
+              ...item,
+              selectedCategory: product?.category || (product && !product.category ? 'No Category' : '')
+            }
+          }
+          return item
+        })
+      )
+    }
+  }, [products, isEditing]) // Only depend on products and isEditing, not saleItems to avoid loops
 
   const fetchProducts = async () => {
     try {
