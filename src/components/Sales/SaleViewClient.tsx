@@ -40,6 +40,15 @@ interface SerializedSale {
   totalProfit: number
   notes?: string
   createdAt: string
+  // Aggregated product data (from API joins)
+  product?: {
+    category?: string
+    type?: string
+    size?: string
+    color?: string
+    sku?: string
+    customFields?: Record<string, any>
+  }
 }
 
 interface SaleViewClientProps {
@@ -254,6 +263,55 @@ export default function SaleViewClient({ sale }: SaleViewClientProps) {
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <h4 className="font-medium text-gray-900">{sale.productName}</h4>
+                
+                {/* Product Details for single-product sales */}
+                {sale.product && (
+                  <div className="mt-2 space-y-2">
+                    {/* Product attributes as badges */}
+                    <div className="flex items-center space-x-2">
+                      {sale.product.category && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                          {sale.product.category}
+                        </span>
+                      )}
+                      {sale.product.type && (
+                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                          {sale.product.type}
+                        </span>
+                      )}
+                      {sale.product.size && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
+                          Size: {sale.product.size}
+                        </span>
+                      )}
+                      {sale.product.color && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
+                          {sale.product.color}
+                        </span>
+                      )}
+                      {sale.product.sku && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-xs font-medium">
+                          SKU: {sale.product.sku}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Custom fields */}
+                    {sale.product.customFields && Object.keys(sale.product.customFields).length > 0 && (
+                      <div className="flex items-center space-x-2">
+                        {Object.entries(sale.product.customFields).map(([key, value]) => (
+                          <span 
+                            key={key}
+                            className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-md text-xs"
+                          >
+                            {key}: {value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="text-gray-600">Quantity:</span>

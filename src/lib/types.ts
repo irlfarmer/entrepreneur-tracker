@@ -7,6 +7,7 @@ export interface User {
   password: string
   companyName: string
   businessType?: string
+  profileImage?: string // Base64 encoded image data
   settings: {
     currency: string
     timezone: string

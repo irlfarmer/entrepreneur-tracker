@@ -52,13 +52,21 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { companyName, businessType, currency, timezone, enabledFields, lowStockThreshold } = body
+    const { companyName, businessType, currency, timezone, enabledFields, lowStockThreshold, profileImage } = body
 
     // Validation
     if (!companyName) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: "Company name is required"
+      }, { status: 400 })
+    }
+
+    // Validate profileImage if provided (should be base64)
+    if (profileImage && !profileImage.startsWith('data:image/')) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid image format. Please upload a valid image."
       }, { status: 400 })
     }
 
@@ -76,6 +84,7 @@ export async function PUT(request: NextRequest) {
       ...user,
       companyName,
       businessType: businessType || user.businessType,
+      profileImage: profileImage !== undefined ? profileImage : user.profileImage,
       settings: {
         ...user.settings, // Preserve existing settings
         currency: currency || user.settings?.currency || "USD",

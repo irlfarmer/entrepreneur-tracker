@@ -136,7 +136,8 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
     currency: "USD",
     timezone: "UTC",
     enabledFields: [] as string[],
-    lowStockThreshold: 3
+    lowStockThreshold: 3,
+    profileImage: ""
   })
 
   // Fetch user data
@@ -157,7 +158,8 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
           currency: data.data.settings?.currency || "USD",
           timezone: data.data.settings?.timezone || "UTC",
           enabledFields: data.data.settings?.enabledFields || ["category", "type", "size", "color"],
-          lowStockThreshold: data.data.settings?.lowStockThreshold ?? 3
+          lowStockThreshold: data.data.settings?.lowStockThreshold ?? 3,
+          profileImage: data.data.profileImage || ""
         })
       }
     } catch (error) {
@@ -181,6 +183,40 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
       enabledFields: prev.enabledFields.includes(field)
         ? prev.enabledFields.filter(f => f !== field)
         : [...prev.enabledFields, field]
+    }))
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Image size must be less than 2MB')
+        return
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64String = event.target?.result as string
+        setFormData(prev => ({
+          ...prev,
+          profileImage: base64String
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      profileImage: ""
     }))
   }
 
@@ -279,6 +315,49 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
               <option value="Arts & Crafts">Arts & Crafts</option>
               <option value="Other">Other</option>
             </select>
+          </div>
+        </div>
+        
+        {/* Profile Image Upload */}
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Business Logo/Profile Image
+          </label>
+          <div className="flex items-start space-x-4">
+            {formData.profileImage && (
+              <div className="relative">
+                <img 
+                  src={formData.profileImage} 
+                  alt="Profile" 
+                  className="w-20 h-20 rounded-full object-cover border-2 border-gray-300"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <div className="flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="profileImageUpload"
+              />
+              <label
+                htmlFor="profileImageUpload"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+              >
+                Upload Image
+              </label>
+              <p className="text-xs text-gray-500 mt-1">
+                Max 2MB. Supported formats: JPG, PNG, GIF
+              </p>
+            </div>
           </div>
         </div>
         

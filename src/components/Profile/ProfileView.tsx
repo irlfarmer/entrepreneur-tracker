@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
+import { getSaleRevenue } from "@/lib/utils"
 import { 
   UserIcon, 
   BuildingOfficeIcon, 
@@ -63,7 +64,7 @@ export default function ProfileView({ userId }: ProfileViewProps) {
       ])
 
       const totalRevenue = salesData.success 
-        ? salesData.data.reduce((sum: number, sale: any) => sum + (sale.quantity * sale.unitSalePrice), 0)
+        ? salesData.data.reduce((sum: number, sale: any) => sum + getSaleRevenue(sale), 0)
         : 0
 
       const totalExpenses = expensesData.success
@@ -107,7 +108,15 @@ export default function ProfileView({ userId }: ProfileViewProps) {
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-8">
           <div className="flex items-center space-x-4">
             <div className="bg-white p-3 rounded-full">
-              <UserIcon className="h-12 w-12 text-blue-600" />
+              {userData?.profileImage ? (
+                <img 
+                  src={userData.profileImage} 
+                  alt="Profile" 
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+              ) : (
+                <UserIcon className="h-12 w-12 text-blue-600" />
+              )}
             </div>
             <div className="text-white">
               <h2 className="text-2xl font-bold">{userData?.companyName || 'Company Name'}</h2>
