@@ -35,6 +35,11 @@ interface SerializedSale {
   customerName?: string
   saleDate: string
   saleExpenses: number
+  saleExpenseDetails?: Array<{
+    category: string
+    amount: number
+    description: string
+  }>
   totalSales?: number
   totalCogs?: number
   totalProfit: number

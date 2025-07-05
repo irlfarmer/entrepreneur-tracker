@@ -91,6 +91,11 @@ export interface Sale {
   customerName?: string
   saleDate: Date
   saleExpenses: number
+  saleExpenseDetails?: Array<{
+    category: string
+    amount: number
+    description: string
+  }>
   totalSales: number
   totalCogs: number
   totalProfit: number

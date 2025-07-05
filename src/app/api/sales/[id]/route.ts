@@ -103,6 +103,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           unitSalePrice: parseFloat(unitPrice),
           unitCostPrice: product.costPrice || 0,
           saleExpenses: totalSaleExpenses,
+          saleExpenseDetails: saleExpenseDetails || [],
           totalProfit: totalProfit,
           notes: notes || "",
           updatedAt: new Date()

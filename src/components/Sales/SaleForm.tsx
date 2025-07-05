@@ -28,6 +28,11 @@ interface SerializedSale {
   customerName?: string
   saleDate: string
   saleExpenses: number
+  saleExpenseDetails?: Array<{
+    category: string
+    amount: number
+    description: string
+  }>
   totalSales?: number
   totalCogs?: number
   totalProfit: number
@@ -108,6 +113,17 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           categoryFilter: ""
         }
         setSaleItems([legacyItem])
+      }
+
+      // Initialize sale expenses from existing sale data
+      if (sale.saleExpenseDetails && sale.saleExpenseDetails.length > 0) {
+        const initialExpenses: SaleExpense[] = sale.saleExpenseDetails.map((expense, index) => ({
+          id: `expense-${index}`,
+          category: expense.category,
+          amount: expense.amount,
+          description: expense.description
+        }))
+        setSaleExpenses(initialExpenses)
       }
     }
   }, [sale])

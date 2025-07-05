@@ -70,21 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { 
-      // Legacy single-product format
-      productId, 
-      productName, 
-      quantitySold, 
-      unitPrice, 
-      // New multi-product format
-      items,
-      // Common fields
-      saleDate, 
-      customerName, 
-      notes, 
-      saleExpenses, 
-      saleExpenseDetails 
-    } = body
+    const { productId, productName, quantitySold, unitPrice, customerName, saleDate, notes, saleExpenses, items, saleExpenseDetails } = body
 
     // Determine if this is a multi-product sale or legacy single-product sale
     const isMultiProduct = items && Array.isArray(items) && items.length > 0
@@ -167,6 +153,7 @@ export async function POST(request: NextRequest) {
         customerName: customerName || undefined,
         saleDate: saleDate ? new Date(saleDate) : new Date(),
         saleExpenses: totalSaleExpenses,
+        saleExpenseDetails: saleExpenseDetails || [],
         totalSales,
         totalCogs,
         totalProfit: netProfit,
@@ -245,6 +232,7 @@ export async function POST(request: NextRequest) {
         customerName: customerName || undefined,
         saleDate: saleDate ? new Date(saleDate) : new Date(),
         saleExpenses: totalSaleExpenses,
+        saleExpenseDetails: saleExpenseDetails || [],
         totalSales: totalRevenue,
         totalCogs,
         totalProfit: totalProfit,
