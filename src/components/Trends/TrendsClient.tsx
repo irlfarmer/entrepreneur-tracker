@@ -282,12 +282,12 @@ export default function TrendsClient() {
       {/* Time Range Selector */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-900">Performance Trends</h2>
-        <div className="flex items-center space-x-2">
-          <label className="text-sm text-gray-700">Time Range:</label>
+        <div className="flex items-center space-x-3">
+          <label className="text-sm font-medium text-gray-700">Time Range:</label>
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(parseInt(e.target.value))}
-            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 shadow-sm hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-colors"
           >
             <option value={6}>Last 6 months</option>
             <option value={12}>Last 12 months</option>
