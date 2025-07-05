@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useCurrency } from "@/hooks/useCurrency"
 import { Product } from "@/lib/types"
@@ -71,6 +71,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   const [newCategoryName, setNewCategoryName] = useState("")
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [saleItems, setSaleItems] = useState<SaleItem[]>([])
+  const [categoriesInitialized, setCategoriesInitialized] = useState(false)
   const [formData, setFormData] = useState({
     customerName: sale?.customerName || "",
     saleDate: sale?.saleDate ? new Date(sale.saleDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -124,33 +125,27 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
       setSaleItems(prevItems => 
         prevItems.map(item => {
           const product = products.find(p => p._id?.toString() === item.productId)
+          
+          // Only set selectedCategory if it's empty AND we're editing AND we haven't initialized yet
+          let selectedCategory = item.selectedCategory
+          if (!selectedCategory && isEditing && !categoriesInitialized && item.productId && product) {
+            selectedCategory = product.category || 'No Category'
+          }
+          
           return {
             ...item,
-            product: product
+            product: product,
+            selectedCategory: selectedCategory
           }
         })
       )
+      
+      // Mark that we've initialized categories for existing sales
+      if (isEditing && !categoriesInitialized) {
+        setCategoriesInitialized(true)
+      }
     }
-  }, [products])
-
-  // Set selectedCategory for existing sales when editing (only run once)
-  useEffect(() => {
-    if (products.length > 0 && saleItems.length > 0 && isEditing) {
-      setSaleItems(prevItems => 
-        prevItems.map(item => {
-          // Only set selectedCategory if it's empty (meaning it's from an existing sale)
-          if (!item.selectedCategory && item.productId) {
-            const product = products.find(p => p._id?.toString() === item.productId)
-            return {
-              ...item,
-              selectedCategory: product?.category || (product && !product.category ? 'No Category' : '')
-            }
-          }
-          return item
-        })
-      )
-    }
-  }, [products, isEditing]) // Only depend on products and isEditing, not saleItems to avoid loops
+  }, [products, isEditing, categoriesInitialized])
 
   const fetchProducts = async () => {
     try {
