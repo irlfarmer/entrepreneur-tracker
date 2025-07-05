@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, getSaleQuantity, getSaleRevenue, getSaleProfit } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
 import {
   CurrencyDollarIcon,
@@ -68,15 +68,15 @@ export default function SalesStats({ userId }: SalesStatsProps) {
   const weekSales = sales.filter(s => new Date(s.saleDate) >= weekAgo)
   const monthSales = sales.filter(s => new Date(s.saleDate) >= monthAgo)
 
-  const todayRevenue = todaySales.reduce((sum, s) => sum + (s.quantity * s.unitSalePrice), 0)
-  const yesterdayRevenue = yesterdaySales.reduce((sum, s) => sum + (s.quantity * s.unitSalePrice), 0)
-  const weekRevenue = weekSales.reduce((sum, s) => sum + (s.quantity * s.unitSalePrice), 0)
-  const monthRevenue = monthSales.reduce((sum, s) => sum + (s.quantity * s.unitSalePrice), 0)
+  const todayRevenue = todaySales.reduce((sum, s) => sum + getSaleRevenue(s), 0)
+  const yesterdayRevenue = yesterdaySales.reduce((sum, s) => sum + getSaleRevenue(s), 0)
+  const weekRevenue = weekSales.reduce((sum, s) => sum + getSaleRevenue(s), 0)
+  const monthRevenue = monthSales.reduce((sum, s) => sum + getSaleRevenue(s), 0)
 
-  const todayProfit = todaySales.reduce((sum, s) => sum + s.totalProfit, 0)
-  const weekProfit = weekSales.reduce((sum, s) => sum + s.totalProfit, 0)
+  const todayProfit = todaySales.reduce((sum, s) => sum + getSaleProfit(s), 0)
+  const weekProfit = weekSales.reduce((sum, s) => sum + getSaleProfit(s), 0)
 
-  const totalQuantitySold = sales.reduce((sum, s) => sum + s.quantity, 0)
+  const totalQuantitySold = sales.reduce((sum, s) => sum + getSaleQuantity(s), 0)
   const avgOrderValue = sales.length > 0 ? monthRevenue / sales.length : 0
 
   const todayGrowth = yesterdayRevenue > 0 ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue * 100) : 0
@@ -120,8 +120,8 @@ export default function SalesStats({ userId }: SalesStatsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {stats.map((stat) => (
-        <div key={stat.title} className="bg-white rounded-lg shadow p-6">
+      {stats.map((stat, index) => (
+        <div key={index} className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
             <div className={`p-2 rounded-lg ${stat.bgColor}`}>
               <stat.icon className={`h-6 w-6 ${stat.color}`} />
@@ -129,8 +129,8 @@ export default function SalesStats({ userId }: SalesStatsProps) {
             <div className="ml-4 flex-1">
               <h3 className="text-sm font-medium text-gray-500">{stat.title}</h3>
               <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-              <div className="flex items-center space-x-2 mt-1">
-                <p className="text-xs text-gray-400">{stat.subtitle}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-600">{stat.subtitle}</p>
                 {stat.change && (
                   <span className={`text-xs font-medium ${stat.changeColor}`}>
                     {stat.change}

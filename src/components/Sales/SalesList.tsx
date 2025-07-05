@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, getSaleQuantity, getSaleRevenue, getSaleProfit, getSaleProductName, getSaleProductNames, isMultiProductSale } from "@/lib/utils"
 import { Sale } from "@/lib/types"
 import { useCurrency } from "@/hooks/useCurrency"
 import Link from "next/link"
 import {
   PencilIcon,
   TrashIcon,
-  EyeIcon
+  EyeIcon,
+  ShoppingBagIcon
 } from "@heroicons/react/24/outline"
 
 interface SalesListProps {
@@ -107,8 +108,8 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
     )
   }
 
-  const totalRevenue = sales.reduce((sum, s) => sum + (s.quantity * s.unitSalePrice), 0)
-  const totalProfit = sales.reduce((sum, s) => sum + s.totalProfit, 0)
+  const totalRevenue = sales.reduce((sum, s) => sum + getSaleRevenue(s), 0)
+  const totalProfit = sales.reduce((sum, s) => sum + getSaleProfit(s), 0)
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -151,41 +152,65 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                 <div className="flex-1">
                   <div className="flex items-center space-x-4">
                     <div className="flex-1">
-                      <h4 className="text-lg font-medium text-gray-900">
-                        {sale.productName}
-                      </h4>
-                      
-                      {/* Product attributes as badges */}
-                      <div className="flex items-center space-x-2 mt-2">
-                        {sale.product?.category && (
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
-                            {sale.product.category}
-                          </span>
-                        )}
-                        {sale.product?.type && (
-                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
-                            {sale.product.type}
-                          </span>
-                        )}
-                        {sale.product?.size && (
-                          <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
-                            Size: {sale.product.size}
-                          </span>
-                        )}
-                        {sale.product?.color && (
-                          <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
-                            {sale.product.color}
-                          </span>
-                        )}
-                        {sale.product?.sku && (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-xs font-medium">
-                            SKU: {sale.product.sku}
+                      <div className="flex items-center space-x-2">
+                        <h4 className="text-lg font-medium text-gray-900">
+                          {getSaleProductName(sale)}
+                        </h4>
+                        {isMultiProductSale(sale) && (
+                          <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                            <ShoppingBagIcon className="h-3 w-3 mr-1" />
+                            Multi-product
                           </span>
                         )}
                       </div>
 
-                      {/* Custom fields preview */}
-                      {sale.product?.customFields && Object.keys(sale.product.customFields).length > 0 && (
+                      {/* Show product names for multi-product sales */}
+                      {isMultiProductSale(sale) && (
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">Products:</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {getSaleProductNames(sale).map((productName, index) => (
+                              <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
+                                {productName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Product attributes as badges - only for single product sales with product details */}
+                      {!isMultiProductSale(sale) && sale.product && (
+                        <div className="flex items-center space-x-2 mt-2">
+                          {sale.product.category && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                              {sale.product.category}
+                            </span>
+                          )}
+                          {sale.product.type && (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                              {sale.product.type}
+                            </span>
+                          )}
+                          {sale.product.size && (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
+                              Size: {sale.product.size}
+                            </span>
+                          )}
+                          {sale.product.color && (
+                            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
+                              {sale.product.color}
+                            </span>
+                          )}
+                          {sale.product.sku && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-xs font-medium">
+                              SKU: {sale.product.sku}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Custom fields preview - only for single product sales */}
+                      {!isMultiProductSale(sale) && sale.product?.customFields && Object.keys(sale.product.customFields).length > 0 && (
                         <div className="flex items-center space-x-2 mt-2">
                           {Object.entries(sale.product.customFields)
                             .slice(0, 2)
@@ -206,10 +231,20 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                       )}
                       
                       <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
-                        <span>Qty: {sale.quantity}</span>
-                        <span>@{formatCurrency(sale.unitSalePrice, currencyCode)}</span>
-                        <span>•</span>
+                        <span>Qty: {getSaleQuantity(sale)}</span>
+                        {!isMultiProductSale(sale) && sale.unitSalePrice && (
+                          <>
+                            <span>@{formatCurrency(sale.unitSalePrice, currencyCode)}</span>
+                            <span>•</span>
+                          </>
+                        )}
                         <span>{formatDate(sale.saleDate)}</span>
+                        {sale.customerName && (
+                          <>
+                            <span>•</span>
+                            <span>Customer: {sale.customerName}</span>
+                          </>
+                        )}
                       </div>
                       {sale.notes && (
                         <p className="text-sm text-gray-500 mt-1">{sale.notes}</p>
@@ -222,10 +257,10 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                 <div className="flex items-center space-x-6">
                   <div className="text-right">
                     <p className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(sale.quantity * sale.unitSalePrice, currencyCode)}
+                      {formatCurrency(getSaleRevenue(sale), currencyCode)}
                     </p>
                     <p className="text-sm text-green-600">
-                      Profit: {formatCurrency(sale.totalProfit, currencyCode)}
+                      Profit: {formatCurrency(getSaleProfit(sale), currencyCode)}
                     </p>
                   </div>
 

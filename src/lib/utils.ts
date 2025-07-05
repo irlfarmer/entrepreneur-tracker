@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { Sale } from "./types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -83,4 +84,60 @@ export function serializeMongoObject<T extends Record<string, any>>(obj: T): any
   }
   
   return serialized
+}
+
+// Sale utilities for handling both legacy and multi-product sales
+export function getSaleQuantity(sale: any): number {
+  if (sale.items && sale.items.length > 0) {
+    // Multi-product sale
+    return sale.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0)
+  }
+  // Legacy single-product sale
+  return sale.quantity || 0
+}
+
+export function getSaleRevenue(sale: any): number {
+  if (sale.totalSales !== undefined) {
+    // Multi-product sale with calculated total
+    return sale.totalSales
+  }
+  if (sale.items && sale.items.length > 0) {
+    // Multi-product sale without pre-calculated total
+    return sale.items.reduce((sum: number, item: any) => 
+      sum + ((item.quantity || 0) * (item.unitSalePrice || 0)), 0)
+  }
+  // Legacy single-product sale
+  return (sale.quantity || 0) * (sale.unitSalePrice || 0)
+}
+
+export function getSaleProfit(sale: any): number {
+  return sale.totalProfit || 0
+}
+
+export function getSaleProductName(sale: any): string {
+  if (sale.items && sale.items.length > 0) {
+    if (sale.items.length === 1) {
+      return sale.items[0].productName || 'Unknown Product'
+    }
+    return `Multi-product sale (${sale.items.length} items)`
+  }
+  return sale.productName || 'Unknown Product'
+}
+
+export function getSaleProductNames(sale: any): string[] {
+  if (sale.items && sale.items.length > 0) {
+    return sale.items.map((item: any) => item.productName || 'Unknown Product')
+  }
+  return [sale.productName || 'Unknown Product']
+}
+
+export function isSingleProductSale(sale: any): boolean {
+  if (sale.items && sale.items.length > 0) {
+    return sale.items.length === 1
+  }
+  return true // Legacy sales are always single product
+}
+
+export function isMultiProductSale(sale: any): boolean {
+  return sale.items && sale.items.length > 1
 } 

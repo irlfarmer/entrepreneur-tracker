@@ -80,7 +80,9 @@ export async function getProducts(userId: string, filters?: any) {
   const db = client.db(DB_NAME)
   
   const query = { userId: new ObjectId(userId), ...filters }
-  return await db.collection(COLLECTIONS.PRODUCTS).find(query).toArray() as Product[]
+  return await db.collection(COLLECTIONS.PRODUCTS).find(query)
+    .sort({ updatedAt: -1 })
+    .toArray() as Product[]
 }
 
 export async function getProductById(productId: string): Promise<Product | null> {

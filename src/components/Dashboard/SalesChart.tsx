@@ -1,19 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getSales } from "@/lib/database"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, getSaleQuantity, getSaleRevenue, getSaleProfit } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
 import { ChartBarIcon } from "@heroicons/react/24/outline"
-
-interface SalesChartProps {
-  userId: string
-}
 
 interface ChartData {
   date: string
   sales: number
   profit: number
+}
+
+interface SalesChartProps {
+  userId: string
 }
 
 export default function SalesChart({ userId }: SalesChartProps) {
@@ -48,8 +47,8 @@ export default function SalesChart({ userId }: SalesChartProps) {
           sales.data.forEach((sale: any) => {
             const dateStr = new Date(sale.saleDate).toISOString().split('T')[0]
             if (dailyData[dateStr]) {
-              dailyData[dateStr].sales += sale.quantity * sale.unitSalePrice
-              dailyData[dateStr].profit += sale.totalProfit
+              dailyData[dateStr].sales += getSaleRevenue(sale)
+              dailyData[dateStr].profit += getSaleProfit(sale)
             }
           })
         }

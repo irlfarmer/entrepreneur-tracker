@@ -86,6 +86,15 @@ export interface Sale {
   totalProfit: number
   notes?: string
   createdAt: Date
+  // Aggregated product data (from API joins)
+  product?: {
+    category?: string
+    type?: string
+    size?: string
+    color?: string
+    sku?: string
+    customFields?: Record<string, any>
+  }
 }
 
 // Expense Types
