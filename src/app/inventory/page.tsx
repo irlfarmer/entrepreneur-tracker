@@ -56,7 +56,10 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
 
         {/* Inventory Stats */}
         <Suspense fallback={<StatsSkeleton />}>
-          <InventoryStats userId={session.user.id} />
+          <InventoryStats 
+            userId={session.user.id} 
+            searchParams={resolvedSearchParams}
+          />
         </Suspense>
 
         {/* Filters */}

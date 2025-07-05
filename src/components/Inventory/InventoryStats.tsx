@@ -12,9 +12,14 @@ import {
 
 interface InventoryStatsProps {
   userId: string
+  searchParams?: {
+    search?: string
+    category?: string
+    lowStock?: string
+  }
 }
 
-export default function InventoryStats({ userId }: InventoryStatsProps) {
+export default function InventoryStats({ userId, searchParams }: InventoryStatsProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,21 +55,46 @@ export default function InventoryStats({ userId }: InventoryStatsProps) {
     )
   }
 
-  // Calculate stats
-  const totalProducts = products.length
-  const lowStockProducts = products.filter(p => p.currentStock <= 5).length
-  const totalValue = products.reduce((sum, p) => sum + (p.currentStock * p.salePrice), 0)
-  const totalCost = products.reduce((sum, p) => sum + (p.currentStock * p.costPrice), 0)
+  // Filter products based on searchParams
+  let filteredProducts = products
+
+  // Apply category filter
+  if (searchParams?.category && searchParams.category !== 'all') {
+    filteredProducts = filteredProducts.filter(product => 
+      product.category === searchParams.category
+    )
+  }
+
+  // Apply search filter
+  if (searchParams?.search) {
+    const searchTerm = searchParams.search.toLowerCase()
+    filteredProducts = filteredProducts.filter(product =>
+      product.name.toLowerCase().includes(searchTerm) ||
+      (product.sku && product.sku.toLowerCase().includes(searchTerm)) ||
+      (product.category && product.category.toLowerCase().includes(searchTerm))
+    )
+  }
+
+  // Apply low stock filter
+  if (searchParams?.lowStock === 'true') {
+    filteredProducts = filteredProducts.filter(product => product.currentStock <= 5)
+  }
+
+  // Calculate stats based on filtered products
+  const totalProducts = filteredProducts.length
+  const lowStockProducts = filteredProducts.filter(p => p.currentStock <= 5).length
+  const totalValue = filteredProducts.reduce((sum, p) => sum + (p.currentStock * p.salePrice), 0)
+  const totalCost = filteredProducts.reduce((sum, p) => sum + (p.currentStock * p.costPrice), 0)
   const totalProfit = totalValue - totalCost
-  const avgProfitMargin = products.length > 0 
-    ? products.reduce((sum, p) => sum + calculateProfitMargin(p.salePrice, p.costPrice), 0) / products.length 
+  const avgProfitMargin = filteredProducts.length > 0 
+    ? filteredProducts.reduce((sum, p) => sum + calculateProfitMargin(p.salePrice, p.costPrice), 0) / filteredProducts.length 
     : 0
 
   const stats = [
     {
       title: "Total Products",
       value: totalProducts.toString(),
-      subtitle: `${products.filter(p => p.currentStock > 0).length} in stock`,
+      subtitle: `${filteredProducts.filter(p => p.currentStock > 0).length} in stock`,
       icon: CubeIcon,
       color: "text-blue-600",
       bgColor: "bg-blue-50"

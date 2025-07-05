@@ -8,6 +8,7 @@ import {
   CurrencyDollarIcon,
   DocumentChartBarIcon,
   ChartBarIcon,
+  PresentationChartLineIcon,
   CogIcon,
   XMarkIcon
 } from "@heroicons/react/24/outline"
@@ -19,6 +20,7 @@ const navigation = [
   { name: "Sales", href: "/sales", icon: CurrencyDollarIcon },
   { name: "Expenses", href: "/expenses", icon: DocumentChartBarIcon },
   { name: "Finance", href: "/finance", icon: ChartBarIcon },
+  { name: "Trends", href: "/trends", icon: PresentationChartLineIcon },
   { name: "Settings", href: "/settings", icon: CogIcon },
 ]
 
