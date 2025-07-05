@@ -58,7 +58,6 @@ interface SaleItem {
   lineTotal: number
   lineProfit: number
   product?: Product
-  selectedCategory: string
 }
 
 export default function SaleForm({ userId, sale, isEditing = false }: SaleFormProps) {
@@ -71,7 +70,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   const [newCategoryName, setNewCategoryName] = useState("")
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [saleItems, setSaleItems] = useState<SaleItem[]>([])
-  const [categoriesInitialized, setCategoriesInitialized] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<string>("")
   const [formData, setFormData] = useState({
     customerName: sale?.customerName || "",
     saleDate: sale?.saleDate ? new Date(sale.saleDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -91,8 +90,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           unitSalePrice: item.unitSalePrice,
           unitCostPrice: item.unitCostPrice,
           lineTotal: item.lineTotal,
-          lineProfit: item.lineProfit,
-          selectedCategory: ''
+          lineProfit: item.lineProfit
         }))
         setSaleItems(initialItems)
       } else if (sale.productId) {
@@ -105,8 +103,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           unitSalePrice: sale.unitSalePrice || 0,
           unitCostPrice: sale.unitCostPrice || 0,
           lineTotal: (sale.quantity || 1) * (sale.unitSalePrice || 0),
-          lineProfit: ((sale.quantity || 1) * (sale.unitSalePrice || 0)) - ((sale.quantity || 1) * (sale.unitCostPrice || 0)),
-          selectedCategory: ''
+          lineProfit: ((sale.quantity || 1) * (sale.unitSalePrice || 0)) - ((sale.quantity || 1) * (sale.unitCostPrice || 0))
         }
         setSaleItems([legacyItem])
       }
@@ -125,27 +122,14 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
       setSaleItems(prevItems => 
         prevItems.map(item => {
           const product = products.find(p => p._id?.toString() === item.productId)
-          
-          // Only set selectedCategory if it's empty AND we're editing AND we haven't initialized yet
-          let selectedCategory = item.selectedCategory
-          if (!selectedCategory && isEditing && !categoriesInitialized && item.productId && product) {
-            selectedCategory = product.category || 'No Category'
-          }
-          
           return {
             ...item,
-            product: product,
-            selectedCategory: selectedCategory
+            product: product
           }
         })
       )
-      
-      // Mark that we've initialized categories for existing sales
-      if (isEditing && !categoriesInitialized) {
-        setCategoriesInitialized(true)
-      }
     }
-  }, [products, isEditing, categoriesInitialized])
+  }, [products])
 
   const fetchProducts = async () => {
     try {
@@ -247,8 +231,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
       unitSalePrice: 0,
       unitCostPrice: 0,
       lineTotal: 0,
-      lineProfit: 0,
-      selectedCategory: ''
+      lineProfit: 0
     }
     setSaleItems([...saleItems, newItem])
   }
@@ -516,19 +499,14 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category *
+                      Category Filter
                     </label>
                     <select
-                      required
-                      value={item.selectedCategory}
-                      onChange={(e) => {
-                        updateSaleItem(item.id, 'selectedCategory', e.target.value)
-                        // Reset product selection when category changes
-                        updateSaleItem(item.id, 'productId', '')
-                      }}
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="">Select a category</option>
+                      <option value="">All Categories</option>
                       {getUniqueCategories().map(category => (
                         <option key={category} value={category}>
                           {category}
@@ -545,14 +523,12 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                       required
                       value={item.productId}
                       onChange={(e) => updateSaleItem(item.id, 'productId', e.target.value)}
-                      disabled={!item.selectedCategory}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="">
-                        {item.selectedCategory ? 'Select a product' : 'Select category first'}
-                      </option>
-                      {item.selectedCategory && getProductsByCategory(item.selectedCategory).map(product => {
+                      <option value="">Select a product</option>
+                      {(categoryFilter ? getProductsByCategory(categoryFilter) : products).map(product => {
                         const productDetails = []
+                        if (product.category) productDetails.push(product.category)
                         if (product.type) productDetails.push(product.type)
                         if (product.size) productDetails.push(`Size: ${product.size}`)
                         if (product.color) productDetails.push(`Color: ${product.color}`)
