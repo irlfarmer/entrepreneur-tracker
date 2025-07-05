@@ -251,6 +251,9 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
               updatedItem.unitCostPrice = selectedProduct.costPrice
               updatedItem.unitSalePrice = selectedProduct.salePrice
               updatedItem.product = selectedProduct
+              // Recalculate line totals when product is selected
+              updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitSalePrice
+              updatedItem.lineProfit = updatedItem.lineTotal - (updatedItem.quantity * updatedItem.unitCostPrice)
             }
           }
           
