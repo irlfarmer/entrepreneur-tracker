@@ -135,7 +135,8 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
     businessType: "",
     currency: "USD",
     timezone: "UTC",
-    enabledFields: [] as string[]
+    enabledFields: [] as string[],
+    lowStockThreshold: 3
   })
 
   // Fetch user data
@@ -155,7 +156,8 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
           businessType: data.data.businessType || "",
           currency: data.data.settings?.currency || "USD",
           timezone: data.data.settings?.timezone || "UTC",
-          enabledFields: data.data.settings?.enabledFields || ["category", "type", "size", "color"]
+          enabledFields: data.data.settings?.enabledFields || ["category", "type", "size", "color"],
+          lowStockThreshold: data.data.settings?.lowStockThreshold ?? 3
         })
       }
     } catch (error) {
@@ -169,7 +171,7 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'lowStockThreshold' ? parseInt(value) || 0 : value
     }))
   }
 
@@ -278,6 +280,25 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
               <option value="Other">Other</option>
             </select>
           </div>
+        </div>
+        
+        <div className="mt-6">
+          <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-1">
+            Low Stock Threshold
+          </label>
+          <input
+            type="number"
+            id="lowStockThreshold"
+            name="lowStockThreshold"
+            value={formData.lowStockThreshold}
+            onChange={handleInputChange}
+            min="0"
+            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="3"
+          />
+          <p className="text-sm text-gray-500 mt-1">
+            Products with stock at or below this number will trigger low stock alerts
+          </p>
         </div>
       </div>
 

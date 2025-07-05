@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, getSaleQuantity, getSaleRevenue, getSaleProductName } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
 import {
   CurrencyDollarIcon,
@@ -47,12 +47,16 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
         // Add sales
         if (sales.success && sales.data) {
           sales.data.forEach((sale: any) => {
+            const productName = getSaleProductName(sale)
+            const quantity = getSaleQuantity(sale)
+            const revenue = getSaleRevenue(sale)
+            
             allActivities.push({
               id: sale._id,
               type: 'sale',
-              title: `Sale: ${sale.productName}`,
-              description: `${sale.quantity} units sold`,
-              amount: sale.quantity * sale.unitSalePrice,
+              title: `Sale: ${productName}`,
+              description: `${quantity} units sold`,
+              amount: revenue,
               timestamp: new Date(sale.saleDate),
               icon: CurrencyDollarIcon,
               color: 'text-green-600'

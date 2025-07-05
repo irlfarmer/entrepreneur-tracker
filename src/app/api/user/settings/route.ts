@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { companyName, businessType, currency, timezone, enabledFields } = body
+    const { companyName, businessType, currency, timezone, enabledFields, lowStockThreshold } = body
 
     // Validation
     if (!companyName) {
@@ -80,7 +80,8 @@ export async function PUT(request: NextRequest) {
         ...user.settings, // Preserve existing settings
         currency: currency || user.settings?.currency || "USD",
         timezone: timezone || user.settings?.timezone || "UTC",
-        enabledFields: enabledFields || user.settings?.enabledFields || ["category", "type", "size", "color"]
+        enabledFields: enabledFields || user.settings?.enabledFields || ["category", "type", "size", "color"],
+        lowStockThreshold: lowStockThreshold !== undefined ? lowStockThreshold : (user.settings?.lowStockThreshold ?? 3)
       },
       updatedAt: new Date()
     }

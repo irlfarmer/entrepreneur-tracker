@@ -123,7 +123,7 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
               Total Revenue: <span className="font-semibold text-gray-900">{formatCurrency(totalRevenue, currencyCode)}</span>
             </p>
             <p className="text-sm text-gray-600">
-              Total Profit: <span className="font-semibold text-green-600">{formatCurrency(totalProfit, currencyCode)}</span>
+              Total Profit: <span className={`font-semibold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(totalProfit, currencyCode)}</span>
             </p>
           </div>
         </div>
@@ -168,11 +168,44 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                       {isMultiProductSale(sale) && (
                         <div className="mt-2">
                           <p className="text-sm text-gray-600">Products:</p>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {getSaleProductNames(sale).map((productName, index) => (
-                              <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
-                                {productName}
-                              </span>
+                          <div className="space-y-2 mt-1">
+                            {sale.items?.map((item: any, index: number) => (
+                              <div key={index} className="flex flex-wrap gap-1 items-center">
+                                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">
+                                  {item.productName} (x{item.quantity})
+                                </span>
+                                
+                                {/* Product details for each item */}
+                                {item.productDetails && (
+                                  <>
+                                    {item.productDetails.category && (
+                                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs">
+                                        {item.productDetails.category}
+                                      </span>
+                                    )}
+                                    {item.productDetails.type && (
+                                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs">
+                                        {item.productDetails.type}
+                                      </span>
+                                    )}
+                                    {item.productDetails.size && (
+                                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs">
+                                        {item.productDetails.size}
+                                      </span>
+                                    )}
+                                    {item.productDetails.color && (
+                                      <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs">
+                                        {item.productDetails.color}
+                                      </span>
+                                    )}
+                                    {item.productDetails.sku && (
+                                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-xs">
+                                        {item.productDetails.sku}
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -259,7 +292,7 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                     <p className="text-lg font-semibold text-gray-900">
                       {formatCurrency(getSaleRevenue(sale), currencyCode)}
                     </p>
-                    <p className="text-sm text-green-600">
+                    <p className={`text-sm ${getSaleProfit(sale) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       Profit: {formatCurrency(getSaleProfit(sale), currencyCode)}
                     </p>
                   </div>

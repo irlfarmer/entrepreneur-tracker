@@ -11,6 +11,7 @@ export interface User {
     currency: string
     timezone: string
     enabledFields: string[]
+    lowStockThreshold: number
     customExpenseCategories: string[]
     customProductCategories: string[]
     customProductFields: { name: string; type: 'text' | 'number' | 'select'; options?: string[] }[]
@@ -65,6 +66,14 @@ export interface SaleItem {
   unitCostPrice: number
   lineTotal: number
   lineProfit: number
+  productDetails?: {
+    category?: string
+    type?: string
+    size?: string
+    color?: string
+    sku?: string
+    customFields?: Record<string, any>
+  }
 }
 
 export interface Sale {

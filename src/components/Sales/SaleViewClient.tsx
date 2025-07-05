@@ -23,6 +23,14 @@ interface SerializedSale {
     unitCostPrice: number
     lineTotal: number
     lineProfit: number
+    productDetails?: {
+      category?: string
+      type?: string
+      size?: string
+      color?: string
+      sku?: string
+      customFields?: Record<string, any>
+    }
   }>
   customerName?: string
   saleDate: string
@@ -163,6 +171,55 @@ export default function SaleViewClient({ sale }: SaleViewClientProps) {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-900">{item.productName}</h4>
+                    
+                    {/* Product Details */}
+                    {item.productDetails && (
+                      <div className="mt-2 space-y-2">
+                        {/* Product attributes as badges */}
+                        <div className="flex items-center space-x-2">
+                          {item.productDetails.category && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+                              {item.productDetails.category}
+                            </span>
+                          )}
+                          {item.productDetails.type && (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-medium">
+                              {item.productDetails.type}
+                            </span>
+                          )}
+                          {item.productDetails.size && (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
+                              Size: {item.productDetails.size}
+                            </span>
+                          )}
+                          {item.productDetails.color && (
+                            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-xs font-medium">
+                              {item.productDetails.color}
+                            </span>
+                          )}
+                          {item.productDetails.sku && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-md text-xs font-medium">
+                              SKU: {item.productDetails.sku}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Custom fields */}
+                        {item.productDetails.customFields && Object.keys(item.productDetails.customFields).length > 0 && (
+                          <div className="flex items-center space-x-2">
+                            {Object.entries(item.productDetails.customFields).map(([key, value]) => (
+                              <span 
+                                key={key}
+                                className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-md text-xs"
+                              >
+                                {key}: {value}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="text-gray-600">Quantity:</span>

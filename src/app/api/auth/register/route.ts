@@ -43,7 +43,12 @@ export async function POST(request: NextRequest) {
       settings: {
         currency: "USD",
         timezone: "UTC",
-        enabledFields: ["category", "type", "size", "color"]
+        enabledFields: ["category", "type", "size", "color"],
+        lowStockThreshold: 3,
+        customExpenseCategories: [],
+        customProductCategories: [],
+        customProductFields: [],
+        saleRelatedExpenseCategories: ["Shipping", "Processing", "Payment Fees", "Packaging"]
       }
     })
 
