@@ -68,6 +68,7 @@ export const authOptions: NextAuthOptions = {
                 currency: "USD",
                 timezone: "UTC",
                 enabledFields: ["category", "type", "size", "color"],
+                lowStockThreshold: 3,
                 customExpenseCategories: [],
                 customProductCategories: [],
                 customProductFields: [],

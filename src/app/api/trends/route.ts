@@ -63,12 +63,26 @@ export async function GET(request: NextRequest) {
       }
     ]).toArray()
 
-    // Expenses trends aggregation
+    // Get user's sale-related expense categories
+    const user = await db.collection('users').findOne({ _id: userId })
+    const saleRelatedCategories = user?.settings?.saleRelatedExpenseCategories || [
+      'Shipping & Delivery',
+      'Payment Processing', 
+      'Taxes & Fees',
+      'Marketing & Advertising',
+      'Packaging',
+      'Commission & Referral',
+      'Returns & Refunds',
+      'Other'
+    ]
+
+    // Expenses trends aggregation (excluding sale-related expenses)
     const expensesTrendsData = await db.collection('expenses').aggregate([
       {
         $match: {
           userId: userId,
-          date: { $gte: startDate }
+          date: { $gte: startDate },
+          category: { $nin: saleRelatedCategories } // Exclude sale-related categories
         }
       },
       {

@@ -232,14 +232,14 @@ export default function TrendsClient() {
     labels: periods,
     datasets: [
       {
-        label: 'Sale Expenses',
+        label: 'Sale-Related Expenses',
         data: trendData.salesTrends.map(item => item.totalExpenses),
         borderColor: 'rgb(239, 68, 68)',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         tension: 0.1
       },
       {
-        label: 'Business Expenses',
+        label: 'Other Business Expenses',
         data: periods.map(period => {
           const expenseData = trendData.expensesTrends.find(item => formatPeriodLabel(item.period) === period)
           return expenseData ? expenseData.totalExpenses : 0
