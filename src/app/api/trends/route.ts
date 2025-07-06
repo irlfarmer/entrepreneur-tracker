@@ -81,14 +81,14 @@ export async function GET(request: NextRequest) {
       {
         $match: {
           userId: userId,
-          date: { $gte: startDate }
+          expenseDate: { $gte: startDate }
         }
       },
       {
         $group: {
           _id: {
-            year: { $year: '$date' },
-            month: { $month: '$date' }
+            year: { $year: '$expenseDate' },
+            month: { $month: '$expenseDate' }
           },
           totalExpenses: { $sum: '$amount' },
           expenseCount: { $sum: 1 }
