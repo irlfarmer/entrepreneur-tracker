@@ -76,13 +76,12 @@ export async function GET(request: NextRequest) {
       'Other'
     ]
 
-    // Expenses trends aggregation (excluding sale-related expenses)
+    // Expenses trends aggregation (all expenses, no filtering)
     const expensesTrendsData = await db.collection('expenses').aggregate([
       {
         $match: {
           userId: userId,
-          date: { $gte: startDate },
-          category: { $nin: saleRelatedCategories } // Exclude sale-related categories
+          date: { $gte: startDate }
         }
       },
       {
