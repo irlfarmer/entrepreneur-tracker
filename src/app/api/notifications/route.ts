@@ -75,12 +75,15 @@ export async function GET(requestPromise: Promise<NextRequest>) {
       throw err
     }
 
+    // Correct: fetch the user's low stock threshold setting from DB; default to 3
+    const user = await db.collection('users').findOne({ _id: userObjectId });
+    const lowStockThreshold = user?.settings?.lowStockThreshold ?? 3;
     let lowStockProducts
     try {
       lowStockProducts = await db.collection(COLLECTIONS.PRODUCTS)
         .find({
           userId: userObjectId,
-          currentStock: { $lte: 5 }
+          currentStock: { $lte: lowStockThreshold }
         })
         .sort({ currentStock: 1, name: 1 })
         .toArray()
