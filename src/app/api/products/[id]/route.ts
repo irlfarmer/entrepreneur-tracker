@@ -3,12 +3,46 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getProductById, updateProduct, deleteProduct } from "@/lib/database"
 import { ApiResponse } from "@/lib/types"
+import { ObjectId } from "mongodb"
 
+// Error handling for Mongo/MongoDB/BSON errors
+function handleMongoError(error: any) {
+  if (
+    error?.name === "MongoServerSelectionError" ||
+    (typeof error?.message === "string" && error.message.toLowerCase().includes("server selection timed out"))
+  ) {
+    console.error("MongoDB connection error:", error)
+    return NextResponse.json<ApiResponse>({
+      success: false,
+      error: "Cannot connect to database. Please try again later."
+    }, { status: 503 })
+  }
+  if (
+    error?.name === "BSONError" ||
+    (typeof error?.message === "string" &&
+      error.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+  ) {
+    return NextResponse.json<ApiResponse>({
+      success: false,
+      error: "Product not found"
+    }, { status: 404 })
+  }
+  return null
+}
+
+function validObjectId(id: string): boolean {
+  // Only allow 24-character hex
+  return typeof id === "string" && /^[a-fA-F0-9]{24}$/.test(id)
+}
+
+// In Next.js 15, params is a Promise and must be awaited before accessing its properties
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  routeParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await routeParams.params;
+    const id = params.id;
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -17,8 +51,23 @@ export async function GET(
       }, { status: 401 })
     }
 
-    const product = await getProductById(params.id)
-    
+    // Validate ID format
+    if (!validObjectId(id)) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Product not found"
+      }, { status: 404 })
+    }
+
+    let product
+    try {
+      product = await getProductById(id)
+    } catch (error: any) {
+      const handled = handleMongoError(error)
+      if (handled) return handled
+      throw error
+    }
+
     if (!product) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -26,8 +75,7 @@ export async function GET(
       }, { status: 404 })
     }
 
-    // Check if user owns this product
-    if (product.userId.toString() !== session.user.id) {
+    if (product.userId?.toString() !== session.user.id) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: "Unauthorized"
@@ -50,9 +98,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  routeParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await routeParams.params;
+    const id = params.id;
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -61,8 +111,22 @@ export async function PUT(
       }, { status: 401 })
     }
 
-    // First check if product exists and user owns it
-    const existingProduct = await getProductById(params.id)
+    if (!validObjectId(id)) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Product not found"
+      }, { status: 404 })
+    }
+
+    let existingProduct
+    try {
+      existingProduct = await getProductById(id)
+    } catch (error: any) {
+      const handled = handleMongoError(error)
+      if (handled) return handled
+      throw error
+    }
+
     if (!existingProduct) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -70,7 +134,7 @@ export async function PUT(
       }, { status: 404 })
     }
 
-    if (existingProduct.userId.toString() !== session.user.id) {
+    if (existingProduct.userId?.toString() !== session.user.id) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: "Unauthorized"
@@ -115,7 +179,14 @@ export async function PUT(
     if (currentStock !== undefined) updateData.currentStock = parseInt(currentStock)
     if (customFields !== undefined) updateData.customFields = customFields
 
-    const updated = await updateProduct(params.id, updateData)
+    let updated
+    try {
+      updated = await updateProduct(id, updateData)
+    } catch (error: any) {
+      const handled = handleMongoError(error)
+      if (handled) return handled
+      throw error
+    }
 
     if (!updated) {
       return NextResponse.json<ApiResponse>({
@@ -140,9 +211,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  routeParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await routeParams.params;
+    const id = params.id;
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -151,8 +224,22 @@ export async function DELETE(
       }, { status: 401 })
     }
 
-    // First check if product exists and user owns it
-    const existingProduct = await getProductById(params.id)
+    if (!validObjectId(id)) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Product not found"
+      }, { status: 404 })
+    }
+
+    let existingProduct
+    try {
+      existingProduct = await getProductById(id)
+    } catch (error: any) {
+      const handled = handleMongoError(error)
+      if (handled) return handled
+      throw error
+    }
+
     if (!existingProduct) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -160,14 +247,21 @@ export async function DELETE(
       }, { status: 404 })
     }
 
-    if (existingProduct.userId.toString() !== session.user.id) {
+    if (existingProduct.userId?.toString() !== session.user.id) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: "Unauthorized"
       }, { status: 403 })
     }
 
-    const deleted = await deleteProduct(params.id)
+    let deleted
+    try {
+      deleted = await deleteProduct(id)
+    } catch (error: any) {
+      const handled = handleMongoError(error)
+      if (handled) return handled
+      throw error
+    }
 
     if (!deleted) {
       return NextResponse.json<ApiResponse>({

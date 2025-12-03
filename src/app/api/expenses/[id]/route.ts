@@ -3,13 +3,26 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getExpenseById, updateExpense, deleteExpense } from "@/lib/database"
 import { ApiResponse } from "@/lib/types"
-import { ObjectId } from "mongodb"
+
+// Helper function to validate MongoDB ObjectID
+function isValidObjectId(id: string): boolean {
+  return /^[a-fA-F0-9]{24}$/.test(id)
+}
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  routeParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await routeParams.params
+
+    if (!isValidObjectId(id)) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid expense ID"
+      }, { status: 400 })
+    }
+
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -18,8 +31,33 @@ export async function GET(
       }, { status: 401 })
     }
 
-    const { id } = await params
-    const expense = await getExpenseById(id)
+    let expense;
+    try {
+      expense = await getExpenseById(id)
+    } catch (err: any) {
+      // Handle database connectivity errors
+      if (
+        err?.name === "MongoServerSelectionError" ||
+        (err?.message && err.message.includes("Server selection timed out"))
+      ) {
+        console.error("MongoDB connection error: ", err)
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Cannot connect to database. Please try again later."
+        }, { status: 503 })
+      }
+      // Handle BSONError or invalid ObjectId
+      if (
+        err?.name === "BSONError" ||
+        (err?.message && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+      ) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Invalid expense ID"
+        }, { status: 400 })
+      }
+      throw err
+    }
 
     if (!expense) {
       return NextResponse.json<ApiResponse>({
@@ -52,9 +90,18 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  routeParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await routeParams.params
+
+    if (!isValidObjectId(id)) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid expense ID"
+      }, { status: 400 })
+    }
+
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -63,27 +110,59 @@ export async function PUT(
       }, { status: 401 })
     }
 
-    const { id } = await params
     const body = await request.json()
     const { category, description, amount, expenseDate, notes } = body
 
     // Validation
-    if (!category || !description || !amount) {
+    if (!category || !description || amount === undefined || amount === null) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: "Category, description, and amount are required"
       }, { status: 400 })
     }
 
-    if (amount <= 0) {
+    if (typeof amount !== "number" && isNaN(parseFloat(amount))) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Amount must be a number"
+      }, { status: 400 })
+    }
+
+    if (parseFloat(amount) <= 0) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: "Amount must be a positive number"
       }, { status: 400 })
     }
 
-    // Check if expense exists and belongs to user
-    const existingExpense = await getExpenseById(id)
+    let existingExpense;
+    try {
+      existingExpense = await getExpenseById(id)
+    } catch (err: any) {
+      // Handle database connectivity errors
+      if (
+        err?.name === "MongoServerSelectionError" ||
+        (err?.message && err.message.includes("Server selection timed out"))
+      ) {
+        console.error("MongoDB connection error: ", err)
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Cannot connect to database. Please try again later."
+        }, { status: 503 })
+      }
+      // Handle BSONError or invalid ObjectId
+      if (
+        err?.name === "BSONError" ||
+        (err?.message && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+      ) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Invalid expense ID"
+        }, { status: 400 })
+      }
+      throw err
+    }
+
     if (!existingExpense) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -106,7 +185,22 @@ export async function PUT(
       notes
     }
 
-    const success = await updateExpense(id, updateData)
+    let success;
+    try {
+      success = await updateExpense(id, updateData)
+    } catch (err: any) {
+      if (
+        err?.name === "MongoServerSelectionError" ||
+        (err?.message && err.message.includes("Server selection timed out"))
+      ) {
+        console.error("MongoDB connection error: ", err)
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Cannot connect to database. Please try again later."
+        }, { status: 503 })
+      }
+      throw err
+    }
 
     if (success) {
       return NextResponse.json<ApiResponse>({
@@ -131,9 +225,18 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  routeParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await routeParams.params
+
+    if (!isValidObjectId(id)) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid expense ID"
+      }, { status: 400 })
+    }
+
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -142,10 +245,34 @@ export async function DELETE(
       }, { status: 401 })
     }
 
-    const { id } = await params
+    let existingExpense;
+    try {
+      existingExpense = await getExpenseById(id)
+    } catch (err: any) {
+      // Handle database connectivity errors
+      if (
+        err?.name === "MongoServerSelectionError" ||
+        (err?.message && err.message.includes("Server selection timed out"))
+      ) {
+        console.error("MongoDB connection error: ", err)
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Cannot connect to database. Please try again later."
+        }, { status: 503 })
+      }
+      // Handle BSONError or invalid ObjectId
+      if (
+        err?.name === "BSONError" ||
+        (err?.message && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+      ) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Invalid expense ID"
+        }, { status: 400 })
+      }
+      throw err
+    }
 
-    // Check if expense exists and belongs to user
-    const existingExpense = await getExpenseById(id)
     if (!existingExpense) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -160,7 +287,22 @@ export async function DELETE(
       }, { status: 403 })
     }
 
-    const success = await deleteExpense(id)
+    let success;
+    try {
+      success = await deleteExpense(id)
+    } catch (err: any) {
+      if (
+        err?.name === "MongoServerSelectionError" ||
+        (err?.message && err.message.includes("Server selection timed out"))
+      ) {
+        console.error("MongoDB connection error: ", err)
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Cannot connect to database. Please try again later."
+        }, { status: 503 })
+      }
+      throw err
+    }
 
     if (success) {
       return NextResponse.json<ApiResponse>({

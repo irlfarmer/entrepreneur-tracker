@@ -1,9 +1,37 @@
-import { NextResponse } from "next/server"
+import { NextResponse, NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getUserByEmail, updateUser } from "@/lib/database"
 
-export async function POST(request: Request) {
+// Helper function to check if error is BSON (ObjectId) or MongoDB connection error
+function handleMongoError(error: any) {
+  // MongoServerSelectionError - cannot connect to database
+  if (
+    error?.name === "MongoServerSelectionError" ||
+    (typeof error?.message === "string" && error.message.toLowerCase().includes("server selection timed out"))
+  ) {
+    console.error("MongoDB connection error:", error)
+    return NextResponse.json({
+      success: false,
+      error: "Cannot connect to database. Please try again later."
+    }, { status: 503 })
+  }
+  // BSONError - invalid ObjectId string or related
+  if (
+    error?.name === "BSONError" ||
+    (typeof error?.message === "string" &&
+      error.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+  ) {
+    return NextResponse.json({
+      success: false,
+      error: "Invalid user ID"
+    }, { status: 400 })
+  }
+  // Otherwise, don't handle
+  return null
+}
+
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
@@ -11,7 +39,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { field } = await request.json()
+    let parsed
+    try {
+      parsed = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
+    }
+
+    const { field } = parsed
 
     if (!field || !field.name || !field.type) {
       return NextResponse.json({ error: "Field name and type are required" }, { status: 400 })
@@ -26,7 +61,14 @@ export async function POST(request: Request) {
     }
 
     // Get current user settings directly from database
-    const user = await getUserByEmail(session.user.email)
+    let user
+    try {
+      user = await getUserByEmail(session.user.email)
+    } catch (err: any) {
+      const response = handleMongoError(err)
+      if (response) return response
+      throw err
+    }
     
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -51,7 +93,14 @@ export async function POST(request: Request) {
       }
     } as Partial<any>
 
-    const result = await updateUser(user._id!.toString(), updateData)
+    let result
+    try {
+      result = await updateUser(user._id!.toString(), updateData)
+    } catch (err: any) {
+      const response = handleMongoError(err)
+      if (response) return response
+      throw err
+    }
 
     if (result) {
       return NextResponse.json({ 
@@ -62,13 +111,15 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({ error: "Failed to add custom field" }, { status: 500 })
     }
-  } catch (error) {
+  } catch (error: any) {
+    const response = handleMongoError(error)
+    if (response) return response
     console.error("Error adding custom field:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
@@ -76,7 +127,14 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { oldFieldName, field } = await request.json()
+    let parsed
+    try {
+      parsed = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
+    }
+
+    const { oldFieldName, field } = parsed
 
     if (!oldFieldName || !field || !field.name || !field.type) {
       return NextResponse.json({ error: "oldFieldName, field name and type are required" }, { status: 400 })
@@ -91,7 +149,14 @@ export async function PUT(request: Request) {
     }
 
     // Get current user settings directly from database
-    const user = await getUserByEmail(session.user.email)
+    let user
+    try {
+      user = await getUserByEmail(session.user.email)
+    } catch (err: any) {
+      const response = handleMongoError(err)
+      if (response) return response
+      throw err
+    }
     
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -123,7 +188,14 @@ export async function PUT(request: Request) {
       }
     } as Partial<any>
 
-    const result = await updateUser(user._id!.toString(), updateData)
+    let result
+    try {
+      result = await updateUser(user._id!.toString(), updateData)
+    } catch (err: any) {
+      const response = handleMongoError(err)
+      if (response) return response
+      throw err
+    }
 
     if (result) {
       return NextResponse.json({ 
@@ -135,13 +207,15 @@ export async function PUT(request: Request) {
     } else {
       return NextResponse.json({ error: "Failed to update custom field" }, { status: 500 })
     }
-  } catch (error) {
+  } catch (error: any) {
+    const response = handleMongoError(error)
+    if (response) return response
     console.error("Error updating custom field:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
@@ -149,7 +223,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
+    let searchParams: URLSearchParams
+    try {
+      // In Next.js 15+, request.url is available but searchParams access may require async in the future.
+      // Here, new URL(request.url) is still sync, as NextRequest.url is a plain string.
+      const url = new URL(request.url)
+      searchParams = url.searchParams
+    } catch {
+      return NextResponse.json({ error: "Invalid request URL" }, { status: 400 })
+    }
     const fieldName = searchParams.get('fieldName')
 
     if (!fieldName) {
@@ -157,7 +239,14 @@ export async function DELETE(request: Request) {
     }
 
     // Get current user settings directly from database
-    const user = await getUserByEmail(session.user.email)
+    let user
+    try {
+      user = await getUserByEmail(session.user.email)
+    } catch (err: any) {
+      const response = handleMongoError(err)
+      if (response) return response
+      throw err
+    }
     
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -176,7 +265,14 @@ export async function DELETE(request: Request) {
       }
     } as Partial<any>
 
-    const result = await updateUser(user._id!.toString(), updateData)
+    let result
+    try {
+      result = await updateUser(user._id!.toString(), updateData)
+    } catch (err: any) {
+      const response = handleMongoError(err)
+      if (response) return response
+      throw err
+    }
 
     if (result) {
       return NextResponse.json({ 
@@ -186,7 +282,9 @@ export async function DELETE(request: Request) {
     } else {
       return NextResponse.json({ error: "Failed to remove custom field" }, { status: 500 })
     }
-  } catch (error) {
+  } catch (error: any) {
+    const response = handleMongoError(error)
+    if (response) return response
     console.error("Error removing custom field:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

@@ -4,9 +4,39 @@ import { authOptions } from "@/lib/auth"
 import { getUserByEmail, updateUser } from "@/lib/database"
 import { ApiResponse } from "@/lib/types"
 
+// Helper to catch MongoDB connection and BSON/ObjectId errors
+function handleMongoError(error: any) {
+  // MongoDB connection error
+  if (
+    error?.name === "MongoServerSelectionError" ||
+    (typeof error?.message === "string" && error.message.toLowerCase().includes("server selection timed out"))
+  ) {
+    console.error("MongoDB connection error:", error)
+    return NextResponse.json<ApiResponse>({
+      success: false,
+      error: "Cannot connect to database. Please try again later."
+    }, { status: 503 })
+  }
+  // Invalid ObjectId (BSON error)
+  if (
+    error?.name === "BSONError" ||
+    (typeof error?.message === "string" &&
+      error.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+  ) {
+    return NextResponse.json<ApiResponse>({
+      success: false,
+      error: "Invalid user ID"
+    }, { status: 400 })
+  }
+  // Not handled: fall through to generic 500
+  return null
+}
+
 // GET user settings
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Even if you don't use searchParams/cookies/etc, Next.js may require an arg for future compatibility
+    // so we receive request: NextRequest, but do not use any dynamic API here.
     const session = await getServerSession(authOptions)
     
     if (!session?.user?.email) {
@@ -16,7 +46,14 @@ export async function GET() {
       }, { status: 401 })
     }
 
-    const user = await getUserByEmail(session.user.email)
+    let user
+    try {
+      user = await getUserByEmail(session.user.email)
+    } catch (err: any) {
+      const resp = handleMongoError(err)
+      if (resp) return resp
+      throw err
+    }
     
     if (!user) {
       return NextResponse.json<ApiResponse>({
@@ -30,7 +67,9 @@ export async function GET() {
       data: user
     })
 
-  } catch (error) {
+  } catch (error: any) {
+    const resp = handleMongoError(error)
+    if (resp) return resp
     console.error("Settings fetch error:", error)
     return NextResponse.json<ApiResponse>({
       success: false,
@@ -40,7 +79,9 @@ export async function GET() {
 }
 
 // PUT update user settings
-export async function PUT(request: NextRequest) {
+export async function PUT(requestPromise: Promise<NextRequest>) {
+  // requestPromise is a Promise<NextRequest> and must be awaited
+  const request = await requestPromise
   try {
     const session = await getServerSession(authOptions)
     
@@ -51,7 +92,15 @@ export async function PUT(request: NextRequest) {
       }, { status: 401 })
     }
 
-    const body = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid JSON payload"
+      }, { status: 400 })
+    }
     const { companyName, businessType, currency, timezone, enabledFields, lowStockThreshold, profileImage } = body
 
     // Validation
@@ -70,7 +119,14 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const user = await getUserByEmail(session.user.email)
+    let user
+    try {
+      user = await getUserByEmail(session.user.email)
+    } catch (err: any) {
+      const resp = handleMongoError(err)
+      if (resp) return resp
+      throw err
+    }
     
     if (!user) {
       return NextResponse.json<ApiResponse>({
@@ -86,7 +142,7 @@ export async function PUT(request: NextRequest) {
       businessType: businessType || user.businessType,
       profileImage: profileImage !== undefined ? profileImage : user.profileImage,
       settings: {
-        ...user.settings, // Preserve existing settings
+        ...user.settings,
         currency: currency || user.settings?.currency || "USD",
         timezone: timezone || user.settings?.timezone || "UTC",
         enabledFields: enabledFields || user.settings?.enabledFields || ["category", "type", "size", "color"],
@@ -95,7 +151,13 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date()
     }
 
-    await updateUser(user._id!.toString(), updatedUser)
+    try {
+      await updateUser(user._id!.toString(), updatedUser)
+    } catch (err: any) {
+      const resp = handleMongoError(err)
+      if (resp) return resp
+      throw err
+    }
 
     return NextResponse.json<ApiResponse>({
       success: true,
@@ -103,7 +165,9 @@ export async function PUT(request: NextRequest) {
       data: updatedUser
     })
 
-  } catch (error) {
+  } catch (error: any) {
+    const resp = handleMongoError(error)
+    if (resp) return resp
     console.error("Settings update error:", error)
     return NextResponse.json<ApiResponse>({
       success: false,

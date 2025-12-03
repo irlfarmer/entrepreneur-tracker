@@ -5,7 +5,8 @@ import { createProduct, getProducts } from "@/lib/database"
 import { ApiResponse } from "@/lib/types"
 import { ObjectId } from "mongodb"
 
-export async function GET(request: NextRequest) {
+export async function GET(requestPromise: Promise<NextRequest>) {
+  const request = await requestPromise
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
@@ -15,6 +16,8 @@ export async function GET(request: NextRequest) {
       }, { status: 401 })
     }
 
+    // In Next.js 15, searchParams may be passed as a Promise (see: async API)
+    // Here, we use request.url for full compatibility as before.
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
     const category = searchParams.get('category')
@@ -52,7 +55,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(requestPromise: Promise<NextRequest>) {
+  const request = await requestPromise
   try {
     const session = await getServerSession(authOptions)
     if (!session) {

@@ -5,8 +5,18 @@ import { createSale, getSalesWithProductDetails, getProductById } from "@/lib/da
 import { ApiResponse } from "@/lib/types"
 import { ObjectId } from "mongodb"
 
+// Helper function to validate MongoDB ObjectID
+function isValidObjectId(id: string): boolean {
+  return typeof id === "string" && /^[a-fA-F0-9]{24}$/.test(id)
+}
+
 export async function GET(request: NextRequest) {
   try {
+    // If using any dynamic APIs (like searchParams on request), they must be awaited in Next.js 15+
+    // NextRequest's query/headers/cookies/searchParams now may be async
+    // However, for the base NextRequest (not next/headers) .url and new URL(request.url) is synchronous and OK.
+    // So, we do not need to "await" anything here as written.
+
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json<ApiResponse>({
@@ -15,6 +25,7 @@ export async function GET(request: NextRequest) {
       }, { status: 401 })
     }
 
+    // Using new URL(request.url) remains synchronous for getting query parameters
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
@@ -29,21 +40,54 @@ export async function GET(request: NextRequest) {
       filters.saleDate = {}
       if (startDate) {
         const start = new Date(startDate)
-        start.setHours(0, 0, 0, 0) // Start of the day
+        start.setHours(0, 0, 0, 0)
         filters.saleDate.$gte = start
       }
       if (endDate) {
         const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999) // End of the day
+        end.setHours(23, 59, 59, 999)
         filters.saleDate.$lte = end
       }
     }
-    
+
+    // Validate ObjectId for productId
     if (productId) {
+      if (!isValidObjectId(productId)) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Invalid product ID"
+        }, { status: 400 })
+      }
       filters.productId = new ObjectId(productId)
     }
 
-    const sales = await getSalesWithProductDetails(session.user.id, filters)
+    let sales;
+    try {
+      sales = await getSalesWithProductDetails(session.user.id, filters)
+    } catch (err: any) {
+      // Handle MongoServerSelectionError (cannot connect to DB)
+      if (
+        err?.name === "MongoServerSelectionError" ||
+        (typeof err?.message === "string" && err.message.toLowerCase().includes("server selection timed out"))
+      ) {
+        console.error("MongoDB connection error: ", err)
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Cannot connect to database. Please try again later."
+        }, { status: 503 })
+      }
+      // Handle BSONError or invalid ObjectId
+      if (
+        err?.name === "BSONError" ||
+        (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+      ) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Invalid input: failed to parse ObjectId"
+        }, { status: 400 })
+      }
+      throw err
+    }
 
     return NextResponse.json<ApiResponse>({
       success: true,
@@ -69,7 +113,16 @@ export async function POST(request: NextRequest) {
       }, { status: 401 })
     }
 
-    const body = await request.json()
+    let body: any
+    try {
+      body = await request.json()
+    } catch (err) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid JSON payload"
+      }, { status: 400 })
+    }
+
     const { productId, productName, quantitySold, unitPrice, customerName, saleDate, notes, saleExpenses, items, saleExpenseDetails } = body
 
     // Determine if this is a multi-product sale or legacy single-product sale
@@ -84,7 +137,6 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // Validate each item
       for (const item of items) {
         if (!item.productId || !item.quantity || !item.unitSalePrice) {
           return NextResponse.json<ApiResponse>({
@@ -92,7 +144,12 @@ export async function POST(request: NextRequest) {
             error: "Each item must have productId, quantity, and unitSalePrice"
           }, { status: 400 })
         }
-
+        if (!isValidObjectId(item.productId)) {
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: `Invalid product ID in items`
+          }, { status: 400 })
+        }
         if (item.quantity <= 0 || item.unitSalePrice <= 0) {
           return NextResponse.json<ApiResponse>({
             success: false,
@@ -108,8 +165,34 @@ export async function POST(request: NextRequest) {
       let totalProfit = 0
 
       for (const item of items) {
-        const product = await getProductById(item.productId)
-        
+        let product
+        try {
+          product = await getProductById(item.productId)
+        } catch (err: any) {
+          // Handle MongoServerSelectionError (DB issue)
+          if (
+            err?.name === "MongoServerSelectionError" ||
+            (typeof err?.message === "string" && err.message.toLowerCase().includes("server selection timed out"))
+          ) {
+            console.error("MongoDB connection error: ", err)
+            return NextResponse.json<ApiResponse>({
+              success: false,
+              error: "Cannot connect to database. Please try again later."
+            }, { status: 503 })
+          }
+          // Handle BSONError
+          if (
+            err?.name === "BSONError" ||
+            (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+          ) {
+            return NextResponse.json<ApiResponse>({
+              success: false,
+              error: `Invalid product ID format: ${item.productId}`
+            }, { status: 400 })
+          }
+          throw err
+        }
+
         if (!product) {
           return NextResponse.json<ApiResponse>({
             success: false,
@@ -137,7 +220,6 @@ export async function POST(request: NextRequest) {
           lineTotal,
           lineProfit
         })
-
         totalSales += lineTotal
         totalCogs += lineCogs
         totalProfit += lineProfit
@@ -146,20 +228,45 @@ export async function POST(request: NextRequest) {
       const totalSaleExpenses = parseFloat(saleExpenses) || 0
       const netProfit = totalProfit - totalSaleExpenses
 
-      // Create multi-product sale
-      const saleId = await createSale({
-        userId: new ObjectId(session.user.id),
-        items: saleItems,
-        customerName: customerName || undefined,
-        saleDate: saleDate ? new Date(saleDate) : new Date(),
-        saleExpenses: totalSaleExpenses,
-        saleExpenseDetails: saleExpenseDetails || [],
-        totalSales,
-        totalCogs,
-        totalProfit: netProfit,
-        notes: notes || ""
-      })
-
+      let saleId
+      try {
+        saleId = await createSale({
+          userId: new ObjectId(session.user.id),
+          items: saleItems,
+          customerName: customerName || undefined,
+          saleDate: saleDate ? new Date(saleDate) : new Date(),
+          saleExpenses: totalSaleExpenses,
+          saleExpenseDetails: saleExpenseDetails || [],
+          totalSales,
+          totalCogs,
+          totalProfit: netProfit,
+          notes: notes || ""
+        })
+      } catch (err: any) {
+        // Handle MongoServerSelectionError (cannot connect to DB)
+        if (
+          err?.name === "MongoServerSelectionError" ||
+          (typeof err?.message === "string" && err.message.toLowerCase().includes("server selection timed out"))
+        ) {
+          console.error("MongoDB connection error: ", err)
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: "Cannot connect to database. Please try again later."
+          }, { status: 503 })
+        }
+        // Handle BSONError
+        if (
+          err?.name === "BSONError" ||
+          (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+        ) {
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: "Invalid input: failed to parse ObjectId"
+          }, { status: 400 })
+        }
+        throw err
+      }
+        
       return NextResponse.json<ApiResponse>({
         success: true,
         message: "Multi-product sale recorded successfully",
@@ -180,6 +287,14 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
+      // Validate productId
+      if (!isValidObjectId(productId)) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: "Invalid product ID"
+        }, { status: 400 })
+      }
+
       if (quantitySold <= 0 || unitPrice <= 0) {
         return NextResponse.json<ApiResponse>({
           success: false,
@@ -187,9 +302,34 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // Fetch product to get cost price
-      const product = await getProductById(productId)
-      
+      let product
+      try {
+        product = await getProductById(productId)
+      } catch (err: any) {
+        // Handle MongoServerSelectionError (cannot connect to DB)
+        if (
+          err?.name === "MongoServerSelectionError" ||
+          (typeof err?.message === "string" && err.message.toLowerCase().includes("server selection timed out"))
+        ) {
+          console.error("MongoDB connection error: ", err)
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: "Cannot connect to database. Please try again later."
+          }, { status: 503 })
+        }
+        // Handle BSONError
+        if (
+          err?.name === "BSONError" ||
+          (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+        ) {
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: "Invalid input: failed to parse productId"
+          }, { status: 400 })
+        }
+        throw err
+      }
+
       if (!product) {
         return NextResponse.json<ApiResponse>({
           success: false,
@@ -204,40 +344,64 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // Calculate profit properly
       const totalRevenue = parseFloat(quantitySold) * parseFloat(unitPrice)
       const totalCogs = parseFloat(quantitySold) * (product.costPrice || 0)
       const totalSaleExpenses = parseFloat(saleExpenses) || 0
       const totalProfit = totalRevenue - totalCogs - totalSaleExpenses
 
-      // Create single-product sale (legacy format)
-      const saleId = await createSale({
-        userId: new ObjectId(session.user.id),
-        // Legacy fields
-        productId: new ObjectId(productId),
-        productName: productName || product.name,
-        quantity: parseInt(quantitySold),
-        unitSalePrice: parseFloat(unitPrice),
-        unitCostPrice: product.costPrice || 0,
-        // New fields
-        items: [{
+      let saleId
+      try {
+        saleId = await createSale({
+          userId: new ObjectId(session.user.id),
+          // Legacy fields
           productId: new ObjectId(productId),
           productName: productName || product.name,
           quantity: parseInt(quantitySold),
           unitSalePrice: parseFloat(unitPrice),
           unitCostPrice: product.costPrice || 0,
-          lineTotal: totalRevenue,
-          lineProfit: totalRevenue - totalCogs
-        }],
-        customerName: customerName || undefined,
-        saleDate: saleDate ? new Date(saleDate) : new Date(),
-        saleExpenses: totalSaleExpenses,
-        saleExpenseDetails: saleExpenseDetails || [],
-        totalSales: totalRevenue,
-        totalCogs,
-        totalProfit: totalProfit,
-        notes: notes || ""
-      })
+          // New fields
+          items: [{
+            productId: new ObjectId(productId),
+            productName: productName || product.name,
+            quantity: parseInt(quantitySold),
+            unitSalePrice: parseFloat(unitPrice),
+            unitCostPrice: product.costPrice || 0,
+            lineTotal: totalRevenue,
+            lineProfit: totalRevenue - totalCogs
+          }],
+          customerName: customerName || undefined,
+          saleDate: saleDate ? new Date(saleDate) : new Date(),
+          saleExpenses: totalSaleExpenses,
+          saleExpenseDetails: saleExpenseDetails || [],
+          totalSales: totalRevenue,
+          totalCogs,
+          totalProfit: totalProfit,
+          notes: notes || ""
+        })
+      } catch (err: any) {
+        // MongoDB server selection error
+        if (
+          err?.name === "MongoServerSelectionError" ||
+          (typeof err?.message === "string" && err.message.toLowerCase().includes("server selection timed out"))
+        ) {
+          console.error("MongoDB connection error: ", err)
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: "Cannot connect to database. Please try again later."
+          }, { status: 503 })
+        }
+        // BSON parse error (invalid ObjectId)
+        if (
+          err?.name === "BSONError" ||
+          (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+        ) {
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: "Invalid input: failed to parse ObjectId"
+          }, { status: 400 })
+        }
+        throw err
+      }
 
       return NextResponse.json<ApiResponse>({
         success: true,
@@ -247,6 +411,29 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
+    // Connection error catch-all for outer scope
+    if (
+      (error as any)?.name === "MongoServerSelectionError" ||
+      ((typeof (error as any)?.message === "string") &&
+       (error as any).message.toLowerCase().includes("server selection timed out"))
+    ) {
+      console.error("MongoDB connection error: ", error)
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Cannot connect to database. Please try again later."
+      }, { status: 503 })
+    }
+    // BSON or other invalid objectId format errors at outer catch
+    if (
+      (error as any)?.name === "BSONError" ||
+      ((typeof (error as any)?.message === "string") &&
+        (error as any).message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
+    ) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: "Invalid input: failed to parse ObjectId"
+      }, { status: 400 })
+    }
     console.error("Error creating sale:", error)
     return NextResponse.json<ApiResponse>({
       success: false,
