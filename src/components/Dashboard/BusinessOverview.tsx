@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { formatCurrency } from "@/lib/utils"
-import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
     ChartBarIcon,
     CurrencyDollarIcon,
@@ -17,21 +17,18 @@ import {
 interface BusinessMetrics {
     businessId: string
     businessName: string
+    currency: string
     today: { revenue: number; profit: number; count: number }
     week: { revenue: number; profit: number; count: number }
     month: { revenue: number; profit: number; count: number }
 }
 
 interface OverviewData {
-    totals: {
-        today: { revenue: number; profit: number; expenses: number; salesCount: number }
-        week: { revenue: number; profit: number; expenses: number; salesCount: number }
-        month: { revenue: number; profit: number; expenses: number; salesCount: number }
-    }
     salesByBusiness: BusinessMetrics[]
     expensesByBusiness: Array<{
         businessId: string
         businessName: string
+        currency: string
         today: number
         week: number
         month: number
@@ -41,33 +38,47 @@ interface OverviewData {
 
 export default function BusinessOverview() {
     const { data: session } = useSession()
-    const { code: currencyCode, loading: currencyLoading } = useCurrency()
+    const { currentBusiness, getBusinessSettings } = useBusiness()
     const [data, setData] = useState<OverviewData | null>(null)
+    const [exchangeRates, setExchangeRates] = useState<any | null>(null)
     const [loading, setLoading] = useState(true)
     const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month'>('month')
-    const [isExpanded, setIsExpanded] = useState(true)
+    const [isExpanded, setIsExpanded] = useState(false)
+
+    const targetCurrency = getBusinessSettings(currentBusiness.id).currency || 'USD'
 
     useEffect(() => {
         if (session?.user?.id) {
-            fetchOverview()
+            fetchOverviewAndRates()
         }
     }, [session?.user?.id])
 
-    const fetchOverview = async () => {
+    const fetchOverviewAndRates = async () => {
+        setLoading(true)
         try {
-            const response = await fetch('/api/dashboard/overview')
-            const result = await response.json()
-            if (result.success) {
-                setData(result.data)
+            const [overviewRes, ratesRes] = await Promise.all([
+                fetch('/api/dashboard/overview'),
+                fetch('/api/exchange-rates')
+            ])
+
+            const overviewResult = await overviewRes.json()
+            if (overviewResult.success) {
+                setData(overviewResult.data)
             }
+
+            const ratesResult = await ratesRes.json()
+            if (ratesResult.success) {
+                setExchangeRates(ratesResult.data)
+            }
+
         } catch (error) {
-            console.error('Error fetching overview:', error)
+            console.error('Error fetching overview data:', error)
         } finally {
             setLoading(false)
         }
     }
 
-    if (loading || currencyLoading) {
+    if (loading || !exchangeRates) {
         return (
             <div className="bg-white rounded-lg shadow p-6 animate-pulse">
                 <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
@@ -82,8 +93,46 @@ export default function BusinessOverview() {
 
     if (!data) return null
 
-    const periodData = data.totals[selectedPeriod]
-    const netProfit = periodData.profit - periodData.expenses
+    const convert = (amount: number, fromCurrency: string) => {
+        const from = fromCurrency.toLowerCase();
+        const to = targetCurrency.toLowerCase();
+
+        if (from === to) {
+            return amount;
+        }
+
+        // All rates are vs USD, so USD is our pivot currency.
+        const fromRate = exchangeRates[from]; // Rate of fromCurrency per 1 USD
+        const toRate = exchangeRates[to];     // Rate of targetCurrency per 1 USD
+
+        if (!fromRate || !toRate) {
+            console.warn(`Exchange rate not found for ${from} or ${to}`);
+            return 0; // or handle error more gracefully
+        }
+
+        // 1. Convert original amount to USD
+        const amountInUsd = amount / fromRate;
+
+        // 2. Convert from USD to the target currency
+        const convertedAmount = amountInUsd * toRate;
+
+        return convertedAmount;
+    }
+
+    const totals = data.salesByBusiness.reduce((acc, business) => {
+        const sales = business[selectedPeriod]
+        const expensesData = data.expensesByBusiness.find(e => e.businessId === business.businessId)
+        const expenses = expensesData ? expensesData[selectedPeriod] : 0
+
+        acc.revenue += convert(sales.revenue, business.currency)
+        acc.profit += convert(sales.profit, business.currency)
+        acc.salesCount += sales.count
+        acc.expenses += convert(expenses, business.currency)
+
+        return acc
+    }, { revenue: 0, profit: 0, salesCount: 0, expenses: 0 })
+
+    const netProfit = totals.profit - totals.expenses
 
     return (
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 border border-blue-100">
@@ -156,7 +205,7 @@ export default function BusinessOverview() {
                                 <div>
                                     <p className="text-sm text-gray-600">Revenue</p>
                                     <p className="text-2xl font-bold text-green-600">
-                                        {formatCurrency(periodData.revenue, currencyCode)}
+                                        {formatCurrency(totals.revenue, targetCurrency)}
                                     </p>
                                 </div>
                                 <CurrencyDollarIcon className="h-8 w-8 text-green-600 opacity-50" />
@@ -168,7 +217,7 @@ export default function BusinessOverview() {
                                 <div>
                                     <p className="text-sm text-gray-600">Gross Profit</p>
                                     <p className="text-2xl font-bold text-blue-600">
-                                        {formatCurrency(periodData.profit, currencyCode)}
+                                        {formatCurrency(totals.profit, targetCurrency)}
                                     </p>
                                 </div>
                                 <ArrowTrendingUpIcon className="h-8 w-8 text-blue-600 opacity-50" />
@@ -180,7 +229,7 @@ export default function BusinessOverview() {
                                 <div>
                                     <p className="text-sm text-gray-600">Expenses</p>
                                     <p className="text-2xl font-bold text-red-600">
-                                        {formatCurrency(periodData.expenses, currencyCode)}
+                                        {formatCurrency(totals.expenses, targetCurrency)}
                                     </p>
                                 </div>
                                 <ChartBarIcon className="h-8 w-8 text-red-600 opacity-50" />
@@ -192,7 +241,7 @@ export default function BusinessOverview() {
                                 <div>
                                     <p className="text-sm text-gray-600">Net Profit</p>
                                     <p className={`text-2xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {formatCurrency(netProfit, currencyCode)}
+                                        {formatCurrency(netProfit, targetCurrency)}
                                     </p>
                                 </div>
                                 <CalendarDaysIcon className={`h-8 w-8 opacity-50 ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`} />
@@ -205,11 +254,14 @@ export default function BusinessOverview() {
                         <h3 className="text-sm font-semibold text-gray-900 mb-3">Revenue by Business</h3>
                         <div className="space-y-2">
                             {data.salesByBusiness
-                                .filter(b => b[selectedPeriod].revenue > 0)
-                                .sort((a, b) => b[selectedPeriod].revenue - a[selectedPeriod].revenue)
+                                .map(business => ({
+                                    ...business,
+                                    convertedRevenue: convert(business[selectedPeriod].revenue, business.currency)
+                                }))
+                                .filter(b => b.convertedRevenue > 0)
+                                .sort((a, b) => b.convertedRevenue - a.convertedRevenue)
                                 .map((business) => {
-                                    const businessRevenue = business[selectedPeriod].revenue
-                                    const percentage = periodData.revenue > 0 ? (businessRevenue / periodData.revenue) * 100 : 0
+                                    const percentage = totals.revenue > 0 ? (business.convertedRevenue / totals.revenue) * 100 : 0
 
                                     return (
                                         <div key={business.businessId} className="flex items-center space-x-3">
@@ -217,7 +269,7 @@ export default function BusinessOverview() {
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-sm font-medium text-gray-700">{business.businessName}</span>
                                                     <span className="text-sm font-semibold text-gray-900">
-                                                        {formatCurrency(businessRevenue, currencyCode)}
+                                                        {formatCurrency(business.convertedRevenue, targetCurrency)}
                                                     </span>
                                                 </div>
                                                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -241,16 +293,19 @@ export default function BusinessOverview() {
                     </div>
 
                     {/* Expenses Breakdown */}
-                    {data.expensesByBusiness.some(b => b[selectedPeriod] > 0) && (
+                    {data.expensesByBusiness.some(b => convert(b[selectedPeriod], b.currency) > 0) && (
                         <div className="bg-white rounded-lg p-4 shadow-sm mt-4">
                             <h3 className="text-sm font-semibold text-gray-900 mb-3">Expenses by Business</h3>
                             <div className="space-y-2">
                                 {data.expensesByBusiness
-                                    .filter(b => b[selectedPeriod] > 0)
-                                    .sort((a, b) => b[selectedPeriod] - a[selectedPeriod])
+                                    .map(business => ({
+                                        ...business,
+                                        convertedExpenses: convert(business[selectedPeriod], business.currency)
+                                    }))
+                                    .filter(b => b.convertedExpenses > 0)
+                                    .sort((a, b) => b.convertedExpenses - a.convertedExpenses)
                                     .map((business) => {
-                                        const businessExpenses = business[selectedPeriod]
-                                        const percentage = periodData.expenses > 0 ? (businessExpenses / periodData.expenses) * 100 : 0
+                                        const percentage = totals.expenses > 0 ? (business.convertedExpenses / totals.expenses) * 100 : 0
 
                                         return (
                                             <div key={business.businessId} className="flex items-center space-x-3">
@@ -258,7 +313,7 @@ export default function BusinessOverview() {
                                                     <div className="flex justify-between items-center mb-1">
                                                         <span className="text-sm font-medium text-gray-700">{business.businessName}</span>
                                                         <span className="text-sm font-semibold text-red-600">
-                                                            {formatCurrency(businessExpenses, currencyCode)}
+                                                            {formatCurrency(business.convertedExpenses, targetCurrency)}
                                                         </span>
                                                     </div>
                                                     <div className="w-full bg-gray-200 rounded-full h-2">

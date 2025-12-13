@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
   CurrencyDollarIcon,
   CalendarDaysIcon,
@@ -16,16 +17,19 @@ interface ExpensesStatsProps {
 
 export default function ExpensesStats({ userId }: ExpensesStatsProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [expenses, setExpenses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchExpenses()
-  }, [userId])
+    if (currentBusiness.id) {
+      fetchExpenses()
+    }
+  }, [userId, currentBusiness.id])
 
   const fetchExpenses = async () => {
     try {
-      const response = await fetch(`/api/expenses?userId=${userId}`)
+      const response = await fetch(`/api/expenses?userId=${userId}&businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setExpenses(data.data || [])

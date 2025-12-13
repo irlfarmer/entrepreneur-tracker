@@ -32,25 +32,30 @@ export async function GET(request: NextRequest) {
         const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
-        // Get user profile for business names
+        // Get user profile for business names and settings
         const user = await db.collection('users').findOne({ _id: userId })
         const businessProfiles = user?.businessProfiles || []
-        const defaultBusinessName = businessProfiles.find((p: any) => p.id === 'default')?.name || 'My Business'
 
-        // Use business profiles from user object
-        const allBusinesses = businessProfiles.map((b: any) => ({
+        // Map business profiles to include currency
+        const allBusinesses: { _id: string; name: string; currency: string }[] = businessProfiles.map((b: any) => ({
             _id: b.id,
-            name: b.name
+            name: b.name,
+            currency: b.settings?.currency || 'USD' // Default to USD if not set
         }))
 
         // Ensure 'default' is included if not present
         if (!allBusinesses.some((b: any) => b._id === 'default')) {
-            allBusinesses.unshift({ _id: 'default', name: defaultBusinessName })
+            const defaultProfile = businessProfiles.find((p: any) => p.id === 'default');
+            allBusinesses.unshift({ 
+                _id: 'default', 
+                name: defaultProfile?.name || 'My Business',
+                currency: defaultProfile?.settings?.currency || user?.settings?.currency || 'USD'
+            })
         }
 
         // Aggregate sales by business and time period
         const salesByBusiness = await Promise.all(
-            allBusinesses.map(async (business: { _id: string; name: string }) => {
+            allBusinesses.map(async (business) => {
                 const businessFilter = business._id === 'default'
                     ? { $or: [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }] }
                     : { businessId: business._id }
@@ -88,6 +93,7 @@ export async function GET(request: NextRequest) {
                 return {
                     businessId: business._id,
                     businessName: business.name,
+                    currency: business.currency,
                     today: calculateTotals(todaySales),
                     week: calculateTotals(weekSales),
                     month: calculateTotals(monthSales)
@@ -97,7 +103,7 @@ export async function GET(request: NextRequest) {
 
         // Aggregate expenses by business
         const expensesByBusiness = await Promise.all(
-            allBusinesses.map(async (business: { _id: string; name: string }) => {
+            allBusinesses.map(async (business) => {
                 const businessFilter = business._id === 'default'
                     ? { $or: [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }] }
                     : { businessId: business._id }
@@ -127,6 +133,7 @@ export async function GET(request: NextRequest) {
                 return {
                     businessId: business._id,
                     businessName: business.name,
+                    currency: business.currency,
                     today: calculateExpenses(todayExpenses),
                     week: calculateExpenses(weekExpenses),
                     month: calculateExpenses(monthExpenses)
@@ -134,32 +141,10 @@ export async function GET(request: NextRequest) {
             })
         )
 
-        // Calculate totals across all businesses
-        const totals = {
-            today: {
-                revenue: salesByBusiness.reduce((sum, b) => sum + b.today.revenue, 0),
-                profit: salesByBusiness.reduce((sum, b) => sum + b.today.profit, 0),
-                expenses: expensesByBusiness.reduce((sum, b) => sum + b.today, 0),
-                salesCount: salesByBusiness.reduce((sum, b) => sum + b.today.count, 0)
-            },
-            week: {
-                revenue: salesByBusiness.reduce((sum, b) => sum + b.week.revenue, 0),
-                profit: salesByBusiness.reduce((sum, b) => sum + b.week.profit, 0),
-                expenses: expensesByBusiness.reduce((sum, b) => sum + b.week, 0),
-                salesCount: salesByBusiness.reduce((sum, b) => sum + b.week.count, 0)
-            },
-            month: {
-                revenue: salesByBusiness.reduce((sum, b) => sum + b.month.revenue, 0),
-                profit: salesByBusiness.reduce((sum, b) => sum + b.month.profit, 0),
-                expenses: expensesByBusiness.reduce((sum, b) => sum + b.month, 0),
-                salesCount: salesByBusiness.reduce((sum, b) => sum + b.month.count, 0)
-            }
-        }
 
         return NextResponse.json<ApiResponse>({
             success: true,
             data: {
-                totals,
                 salesByBusiness,
                 expensesByBusiness,
                 businessCount: allBusinesses.length
