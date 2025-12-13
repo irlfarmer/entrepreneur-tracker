@@ -22,9 +22,11 @@ interface InventoryStatsProps {
 
 export default function InventoryStats({ userId, searchParams }: InventoryStatsProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
-  const { currentBusiness } = useBusiness()
+  const { currentBusiness, getBusinessSettings } = useBusiness()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const lowStockThreshold = getBusinessSettings(currentBusiness.id).lowStockThreshold
 
   useEffect(() => {
     fetchProducts()
@@ -79,7 +81,8 @@ export default function InventoryStats({ userId, searchParams }: InventoryStatsP
 
   // Apply low stock filter
   if (searchParams?.lowStock === 'true') {
-    filteredProducts = filteredProducts.filter(product => product.currentStock <= 5)
+    const lowStockThreshold = getBusinessSettings(currentBusiness.id).lowStockThreshold
+    filteredProducts = filteredProducts.filter(product => product.currentStock <= lowStockThreshold)
   }
 
   // Calculate stats based on filtered products
@@ -88,7 +91,7 @@ export default function InventoryStats({ userId, searchParams }: InventoryStatsP
 
   const totalProducts = filteredProducts.length
   // Only physical products can be low stock. Services with 999999 or N/A shouldn't count.
-  const lowStockProducts = physicalProducts.filter(p => p.currentStock <= 5).length
+  const lowStockProducts = physicalProducts.filter(p => p.currentStock <= lowStockThreshold).length
 
   // Inventory Value only applies to physical products held in stock
   const totalValue = physicalProducts.reduce((sum, p) => sum + (p.currentStock * p.salePrice), 0)

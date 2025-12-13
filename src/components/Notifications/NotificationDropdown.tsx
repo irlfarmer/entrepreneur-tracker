@@ -4,12 +4,13 @@ import { useState, useEffect, Fragment } from "react"
 import { useSession } from "next-auth/react"
 import { Menu, Transition } from "@headlessui/react"
 import { useRouter } from "next/navigation"
-import { 
-  BellIcon, 
+import {
+  BellIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon
 } from "@heroicons/react/24/outline"
 import { Product } from "@/lib/types"
+import { useBusiness } from "@/context/BusinessContext"
 
 interface NotificationDropdownProps {
   className?: string
@@ -23,6 +24,7 @@ interface NotificationData {
 export default function NotificationDropdown({ className = "" }: NotificationDropdownProps) {
   const { data: session } = useSession()
   const router = useRouter()
+  const { currentBusiness } = useBusiness()
   const [notifications, setNotifications] = useState<NotificationData>({
     lowStockProducts: [],
     totalNotifications: 0
@@ -30,19 +32,19 @@ export default function NotificationDropdown({ className = "" }: NotificationDro
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (session?.user?.id && currentBusiness) {
       fetchNotifications()
       // Refresh every 5 minutes
       const interval = setInterval(fetchNotifications, 5 * 60 * 1000)
       return () => clearInterval(interval)
     }
-  }, [session?.user?.id])
+  }, [session?.user?.id, currentBusiness.id])
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch(`/api/notifications`)
+      const response = await fetch(`/api/notifications?businessId=${currentBusiness.id}`)
       const data = await response.json()
-      
+
       if (data.success) {
         setNotifications({
           lowStockProducts: data.data.lowStockProducts || [],
@@ -87,7 +89,7 @@ export default function NotificationDropdown({ className = "" }: NotificationDro
           <div className="px-4 py-3 border-b border-gray-200">
             <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
           </div>
-          
+
           {loading ? (
             <div className="px-4 py-3">
               <div className="animate-pulse space-y-2">
@@ -105,15 +107,14 @@ export default function NotificationDropdown({ className = "" }: NotificationDro
                   </span>
                 </div>
               </div>
-              
+
               {notifications.lowStockProducts.map((product) => (
                 <Menu.Item key={product._id?.toString()}>
                   {({ active }) => (
                     <button
                       onClick={() => handleNotificationClick(product._id?.toString() || '')}
-                      className={`${
-                        active ? 'bg-gray-50' : ''
-                      } block w-full text-left px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors`}
+                      className={`${active ? 'bg-gray-50' : ''
+                        } block w-full text-left px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors`}
                     >
                       <div className="flex items-start space-x-3">
                         <div className="flex-shrink-0 mt-1">

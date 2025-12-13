@@ -75,14 +75,32 @@ export async function GET(requestPromise: Promise<NextRequest>) {
       throw err
     }
 
-    // Correct: fetch the user's low stock threshold setting from DB; default to 3
-    const user = await db.collection('users').findOne({ _id: userObjectId });
-    const lowStockThreshold = user?.settings?.lowStockThreshold ?? 3;
+    // Get businessId from query params
+    const { searchParams } = new URL(request.url)
+    const businessId = searchParams.get('businessId') || 'default'
+
+    // Get business profile's low stock threshold setting
+    const user = await db.collection('users').findOne({ _id: userObjectId })
+    let lowStockThreshold = 3
+
+    const businessProfile = user?.businessProfiles?.find((bp: any) => bp.id === businessId)
+    // Prioritize profile settings, but fallback to legacy user settings for safety
+    lowStockThreshold = businessProfile?.settings?.lowStockThreshold ?? user?.settings?.lowStockThreshold ?? 3
+
+    // Build businessId filter
+    const businessFilter: any = {}
+    if (businessId === 'default') {
+      businessFilter.$or = [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }]
+    } else {
+      businessFilter.businessId = businessId
+    }
+
     let lowStockProducts
     try {
       lowStockProducts = await db.collection(COLLECTIONS.PRODUCTS)
         .find({
           userId: userObjectId,
+          ...businessFilter,
           currentStock: { $lte: lowStockThreshold }
         })
         .sort({ currentStock: 1, name: 1 })

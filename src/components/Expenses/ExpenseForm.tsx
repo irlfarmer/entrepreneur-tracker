@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { PlusIcon, XMarkIcon } from "@heroicons/react/24/outline"
 import { useCurrency } from "@/hooks/useCurrency"
 import { useModal } from "@/context/ModalContext"
+import { useBusiness } from "@/context/BusinessContext"
 import { Expense } from "@/lib/types"
 
 interface ExpenseFormProps {
@@ -32,6 +33,7 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
   const router = useRouter()
   const { symbol: currencySymbol } = useCurrency()
   const { showModal } = useModal()
+  const { currentBusiness } = useBusiness()
   const [loading, setLoading] = useState(false)
   const [userCategories, setUserCategories] = useState<string[]>([])
   const [showAddCategory, setShowAddCategory] = useState(false)
@@ -119,7 +121,8 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
         body: JSON.stringify({
           ...formData,
           amount: parseFloat(formData.amount),
-          expenseDate: new Date(formData.date)
+          expenseDate: new Date(formData.date),
+          businessId: currentBusiness.id
         })
       })
 

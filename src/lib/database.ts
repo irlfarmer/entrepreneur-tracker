@@ -699,9 +699,13 @@ export async function getDashboardMetrics(userId: string, businessId: string): P
 
   const userObjectId = new ObjectId(userId)
 
-  // Get user's low stock threshold setting (default to 3)
+  // Get business profile's low stock threshold setting (default to 3)
   const user = await db.collection('users').findOne({ _id: userObjectId })
-  const lowStockThreshold = user?.settings?.lowStockThreshold ?? 3
+  let lowStockThreshold = 3
+
+  const businessProfile = user?.businessProfiles?.find((bp: any) => bp.id === businessId)
+  // Prioritize profile settings, but fallback to legacy user settings for safety
+  lowStockThreshold = businessProfile?.settings?.lowStockThreshold ?? user?.settings?.lowStockThreshold ?? 3
 
   // Helper function to calculate sales totals that works for both legacy and multi-product sales
   const calculateSalesTotals = (sales: any[]) => {

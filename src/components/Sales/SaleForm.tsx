@@ -412,7 +412,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           saleDate: formData.saleDate,
           notes: formData.notes,
           saleExpenses: totalSaleExpenses,
-          saleExpenseDetails: saleExpenses
+          saleExpenseDetails: saleExpenses,
+          businessId: currentBusiness.id
         })
       })
 
