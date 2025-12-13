@@ -7,6 +7,7 @@ import MetricsCards from "@/components/Dashboard/MetricsCards"
 import SalesChart from "@/components/Dashboard/SalesChart"
 import RecentActivity from "@/components/Dashboard/RecentActivity"
 import QuickActions from "@/components/Dashboard/QuickActions"
+import BusinessOverview from "@/components/Dashboard/BusinessOverview"
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
@@ -28,6 +29,9 @@ export default async function DashboardPage() {
 
         {/* Quick Actions */}
         <QuickActions />
+
+        {/* All Businesses Overview */}
+        <BusinessOverview />
 
         {/* Metrics Cards */}
         <Suspense fallback={<MetricsCardsSkeleton />}>

@@ -170,8 +170,8 @@ export default function ServiceForm({ service, onSuccess, onCancel }: ServiceFor
         setLoading(true)
 
         try {
-            const url = service ? `/api/services/${service._id}` : '/api/services'
-            const method = service ? 'PUT' : 'POST'
+            const url = service?._id ? `/api/services/${service._id}` : '/api/services'
+            const method = service?._id ? 'PUT' : 'POST'
 
             const res = await fetch(url, {
                 method,
@@ -186,7 +186,7 @@ export default function ServiceForm({ service, onSuccess, onCancel }: ServiceFor
             if (data.success) {
                 onSuccess()
             } else {
-                showModal({ title: 'Error', message: data.error || `Failed to ${service ? 'update' : 'create'} service`, type: 'error' })
+                showModal({ title: 'Error', message: data.error || `Failed to ${service?._id ? 'update' : 'create'} service`, type: 'error' })
             }
         } catch (error) {
             showModal({ title: 'Error', message: "An error occurred", type: 'error' })
@@ -402,7 +402,7 @@ export default function ServiceForm({ service, onSuccess, onCancel }: ServiceFor
                     disabled={loading}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
                 >
-                    {loading ? "Saving..." : (service ? "Update Service" : "Create Service")}
+                    {loading ? "Saving..." : (service?._id ? "Update Service" : "Create Service")}
                 </button>
             </div>
         </form>

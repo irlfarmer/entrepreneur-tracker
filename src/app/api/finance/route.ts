@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month')
     const year = searchParams.get('year')
     const viewType = searchParams.get('viewType') || 'monthly'
+    const businessId = searchParams.get('businessId') || 'default'
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -64,11 +65,19 @@ export async function GET(request: NextRequest) {
 
     const db = client.db('entrepreneur-tracker')
 
+    // Build businessId filter
+    const businessFilter: any = {}
+    if (businessId === 'default') {
+      businessFilter.$or = [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }]
+    } else {
+      businessFilter.businessId = businessId
+    }
+
     // Check if user has any data first to avoid unnecessary queries
     let hasAnyData: number = 0
     try {
       const result = await Promise.race([
-        db.collection('sales').countDocuments({ userId: new ObjectId(userId) }, { limit: 1 }),
+        db.collection('sales').countDocuments({ userId: new ObjectId(userId), ...businessFilter }, { limit: 1 }),
         new Promise<number>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
       ])
       hasAnyData = typeof result === "number" ? result : 0
@@ -126,6 +135,7 @@ export async function GET(request: NextRequest) {
       const result = await Promise.race([
         db.collection('sales').find({
           userId: new ObjectId(userId),
+          ...businessFilter,
           saleDate: {
             $gte: startDate,
             $lte: endDate
@@ -159,6 +169,7 @@ export async function GET(request: NextRequest) {
       const result = await Promise.race([
         db.collection('expenses').find({
           userId: new ObjectId(userId),
+          ...businessFilter,
           expenseDate: {
             $gte: startDate,
             $lte: endDate
@@ -197,6 +208,7 @@ export async function GET(request: NextRequest) {
       const result = await Promise.race([
         db.collection('sales').find({
           userId: new ObjectId(userId),
+          ...businessFilter,
           saleDate: {
             $gte: trendStartDate,
             $lte: trendEndDate
@@ -230,6 +242,7 @@ export async function GET(request: NextRequest) {
       const result = await Promise.race([
         db.collection('expenses').find({
           userId: new ObjectId(userId),
+          ...businessFilter,
           expenseDate: {
             $gte: trendStartDate,
             $lte: trendEndDate
@@ -262,7 +275,8 @@ export async function GET(request: NextRequest) {
     try {
       const result = await Promise.race([
         db.collection('products').find({
-          userId: new ObjectId(userId)
+          userId: new ObjectId(userId),
+          ...businessFilter
         }).toArray(),
         new Promise<any[]>((_, reject) =>
           setTimeout(() => reject(new Error('Product query timeout')), 5000)

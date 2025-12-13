@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
   ChartBarIcon,
   CurrencyDollarIcon,
@@ -40,6 +41,7 @@ interface FinanceData {
 
 export default function FinanceOverview({ userId }: FinanceOverviewProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [loading, setLoading] = useState(true)
   const [financeData, setFinanceData] = useState<FinanceData | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().getMonth().toString())
@@ -48,27 +50,28 @@ export default function FinanceOverview({ userId }: FinanceOverviewProps) {
 
   useEffect(() => {
     fetchFinanceData()
-  }, [userId, selectedMonth, selectedYear, viewType])
+  }, [userId, selectedMonth, selectedYear, viewType, currentBusiness])
 
   const fetchFinanceData = async () => {
     try {
       const params = new URLSearchParams({
         userId,
+        businessId: currentBusiness.id,
         month: selectedMonth,
         year: selectedYear.toString(),
         viewType
       })
-      
+
       // Add timeout to prevent hanging
       const response = await Promise.race([
         fetch(`/api/finance?${params}`),
-        new Promise<Response>((_, reject) => 
+        new Promise<Response>((_, reject) =>
           setTimeout(() => reject(new Error('Request timeout')), 10000)
         )
       ])
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         setFinanceData(data.data)
       } else {
@@ -149,21 +152,19 @@ export default function FinanceOverview({ userId }: FinanceOverviewProps) {
             <div className="flex rounded-lg border border-gray-300 p-1">
               <button
                 onClick={() => setViewType('monthly')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewType === 'monthly' 
-                    ? 'bg-blue-600 text-white' 
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewType === 'monthly'
+                    ? 'bg-blue-600 text-white'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => setViewType('yearly')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  viewType === 'yearly' 
-                    ? 'bg-blue-600 text-white' 
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewType === 'yearly'
+                    ? 'bg-blue-600 text-white'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 Yearly
               </button>
@@ -184,7 +185,7 @@ export default function FinanceOverview({ userId }: FinanceOverviewProps) {
                 ))}
               </select>
             )}
-            
+
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}

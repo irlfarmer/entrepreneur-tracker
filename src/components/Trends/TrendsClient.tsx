@@ -1,21 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
-  Title, 
-  Tooltip, 
+  Title,
+  Tooltip,
   Legend,
   ChartOptions
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { format } from 'date-fns'
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 
 // Register Chart.js components
 ChartJS.register(
@@ -71,15 +72,16 @@ export default function TrendsClient() {
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState(12) // Default to 12 months
   const { symbol: currencySymbol } = useCurrency()
+  const { currentBusiness } = useBusiness()
 
   useEffect(() => {
     fetchTrendData()
-  }, [timeRange])
+  }, [timeRange, currentBusiness])
 
   const fetchTrendData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/trends?months=${timeRange}`)
+      const response = await fetch(`/api/trends?months=${timeRange}&businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setTrendData(data.data)
@@ -104,7 +106,7 @@ export default function TrendsClient() {
       },
       tooltip: {
         callbacks: {
-          label: function(context) {
+          label: function (context) {
             const label = context.dataset.label || ''
             if (label.includes('Revenue') || label.includes('Profit') || label.includes('Expenses') || label.includes('COGS')) {
               return `${label}: ${currencySymbol}${context.parsed.y.toFixed(2)}`
@@ -118,7 +120,7 @@ export default function TrendsClient() {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function(value) {
+          callback: function (value) {
             if (typeof value === 'number') {
               return currencySymbol + value.toFixed(0)
             }
@@ -137,7 +139,7 @@ export default function TrendsClient() {
       },
       tooltip: {
         callbacks: {
-          label: function(context) {
+          label: function (context) {
             const label = context.dataset.label || ''
             if (label.includes('Revenue') || label.includes('Value')) {
               return `${label}: ${currencySymbol}${context.parsed.y.toFixed(2)}`
@@ -151,7 +153,7 @@ export default function TrendsClient() {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function(value) {
+          callback: function (value) {
             if (typeof value === 'number') {
               return currencySymbol + value.toFixed(0)
             }
@@ -180,7 +182,7 @@ export default function TrendsClient() {
 
   // Prepare chart data
   const periods = trendData.salesTrends.map(item => formatPeriodLabel(item.period))
-  
+
   const revenueVsProfitData = {
     labels: periods,
     datasets: [
@@ -327,21 +329,21 @@ export default function TrendsClient() {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Profit Margin Trend</h3>
           <div className="h-80">
-            <Line 
-              data={profitMarginData} 
+            <Line
+              data={profitMarginData}
               options={{
                 ...chartOptions,
                 scales: {
                   y: {
                     beginAtZero: true,
                     ticks: {
-                      callback: function(value) {
+                      callback: function (value) {
                         return value + '%'
                       }
                     }
                   }
                 }
-              }} 
+              }}
             />
           </div>
         </div>

@@ -31,6 +31,7 @@ export async function GET(request: NextRequest, context?: { searchParams?: Promi
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const category = searchParams.get('category')
+    const businessId = searchParams.get('businessId') || 'default'
 
     // Build filter object
     const filters: any = {}
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest, context?: { searchParams?: Promi
           error: "Invalid user ID"
         }, { status: 400 })
       }
-      expenses = await getExpenses(session.user.id, filters)
+      expenses = await getExpenses(session.user.id, businessId, filters)
     } catch (err: any) {
       // Handle MongoDB connection error
       if (
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const { category, description, amount, expenseDate, receiptUrl } = body
+    const { category, description, amount, expenseDate, receiptUrl, businessId } = body
 
     // Validation
     if (!category || !description || amount === undefined || amount === null) {
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
     try {
       expenseId = await createExpense({
         userId: new ObjectId(session.user.id),
+        businessId: businessId || 'default',
         category,
         description,
         amount: parsedAmount,

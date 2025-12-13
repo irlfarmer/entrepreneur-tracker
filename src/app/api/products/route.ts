@@ -92,7 +92,6 @@ export async function POST(requestPromise: Promise<NextRequest>) {
       name,
       category,
       type: type || "",
-      productType: productType || "physical",
       size: size || "",
       color: color || "",
       sku: sku || "",

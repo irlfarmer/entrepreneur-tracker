@@ -15,6 +15,7 @@ export async function GET(request: Request) {
     // (If you ever use (e.g.) "searchParams" from the route handler's context arg, await it.)
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const businessId = searchParams.get('businessId') || 'default'
 
     if (!userId) {
       return NextResponse.json({ success: false, error: "User ID is required" }, { status: 400 })
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
 
     let metrics
     try {
-      metrics = await getDashboardMetrics(userId)
+      metrics = await getDashboardMetrics(userId, businessId)
     } catch (err: any) {
       // Handle MongoServerSelectionError (e.g. cannot connect to DB)
       if (

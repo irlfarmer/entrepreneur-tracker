@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     const months = parseInt((searchParams.get?.('months') ?? searchParams.get('months') ?? '12')) // Default to 12 months
+    const businessId = searchParams.get?.('businessId') ?? searchParams.get('businessId') ?? 'default'
 
     let rawClient: unknown
     try {
@@ -100,12 +101,21 @@ export async function GET(request: NextRequest) {
     startDate.setDate(1) // Start from the first day of the month
     startDate.setHours(0, 0, 0, 0)
 
+    // Build businessId filter
+    const businessFilter: any = {}
+    if (businessId === 'default') {
+      businessFilter.$or = [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }]
+    } else {
+      businessFilter.businessId = businessId
+    }
+
     let salesTrendsData: any[] = []
     try {
       salesTrendsData = await db.collection('sales').aggregate([
         {
           $match: {
             userId: userId,
+            ...businessFilter,
             saleDate: { $gte: startDate }
           }
         },
@@ -170,7 +180,7 @@ export async function GET(request: NextRequest) {
     }
     const saleRelatedCategories = user?.settings?.saleRelatedExpenseCategories || [
       'Shipping & Delivery',
-      'Payment Processing', 
+      'Payment Processing',
       'Taxes & Fees',
       'Marketing & Advertising',
       'Packaging',
@@ -185,6 +195,7 @@ export async function GET(request: NextRequest) {
         {
           $match: {
             userId: userId,
+            ...businessFilter,
             expenseDate: { $gte: startDate }
           }
         },
@@ -223,6 +234,7 @@ export async function GET(request: NextRequest) {
         {
           $match: {
             userId: userId,
+            ...businessFilter,
             saleDate: { $gte: startDate }
           }
         },
@@ -282,19 +294,20 @@ export async function GET(request: NextRequest) {
       inventoryData = await db.collection('products').aggregate([
         {
           $match: {
-            userId: userId
+            userId: userId,
+            ...businessFilter
           }
         },
         {
           $group: {
             _id: null,
             totalProducts: { $sum: 1 },
-            totalInventoryValue: { 
-              $sum: { 
+            totalInventoryValue: {
+              $sum: {
                 $multiply: [
-                  { $ifNull: ['$currentStock', 0] }, 
+                  { $ifNull: ['$currentStock', 0] },
                   { $ifNull: ['$costPrice', 0] }
-                ] 
+                ]
               }
             },
             lowStockProducts: {
@@ -365,7 +378,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: trendData
     })
-    
+
   } catch (error: any) {
     const name = error?.name
     const message = error?.message
