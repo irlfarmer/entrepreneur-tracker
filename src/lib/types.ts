@@ -1,34 +1,49 @@
 import { ObjectId } from 'mongodb'
 
 // User Types
+export interface BusinessSettings {
+  currency: string
+  timezone: string
+  enabledFields: string[]
+  lowStockThreshold: number
+  customExpenseCategories: string[]
+  customProductCategories: string[]
+  customServiceCategories: string[]
+  customProductFields: { name: string; type: 'text' | 'number' | 'select'; options?: string[] }[]
+  customServiceFields: { name: string; type: 'text' | 'number' | 'select'; options?: string[] }[]
+  saleRelatedExpenseCategories: string[]
+}
+
+export interface BusinessProfile {
+  id: string
+  name: string
+  settings?: BusinessSettings // Optional for backward compatibility/newly created ones before init
+}
+
 export interface User {
   _id?: ObjectId
   email: string
   password: string
   companyName: string
   businessType?: string
-  profileImage?: string // Base64 encoded image data
-  settings: {
-    currency: string
-    timezone: string
-    enabledFields: string[]
-    lowStockThreshold: number
-    customExpenseCategories: string[]
-    customProductCategories: string[]
-    customProductFields: { name: string; type: 'text' | 'number' | 'select'; options?: string[] }[]
-    saleRelatedExpenseCategories: string[]
-  }
+  profileImage?: string
+  // Legacy global settings (kept for default/fallback)
+  settings: BusinessSettings
   createdAt: Date
   updatedAt: Date
+  businessProfiles?: BusinessProfile[]
+  activeBusinessId?: string
 }
 
 // Product Types
 export interface Product {
   _id?: ObjectId
   userId: ObjectId
+  businessId: string
   name: string
   category: string
   type?: string
+  // productType removed
   size?: string
   color?: string
   sku?: string
@@ -40,10 +55,41 @@ export interface Product {
   updatedAt: Date
 }
 
+// Service Types
+export interface Service {
+  _id?: ObjectId
+  userId: ObjectId
+  businessId: string
+  name: string
+  description?: string
+  price: number
+  category?: string
+  customFields?: Record<string, any>
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Serialized Service for Client Components
+export interface SerializedService {
+  _id?: string
+  userId: string
+  businessId: string
+  name: string
+  description?: string
+  price: number
+  category?: string
+  customFields?: Record<string, any>
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 // Serialized Product for Client Components
 export interface SerializedProduct {
   _id?: string
   userId: string
+  businessId: string
   name: string
   category: string
   type?: string
@@ -60,8 +106,9 @@ export interface SerializedProduct {
 
 // Sales Types
 export interface SaleItem {
-  productId: ObjectId
-  productName: string
+  itemId: ObjectId // Can be ProductId or ServiceId
+  itemType: 'Product' | 'Service'
+  name: string // Snapshot of name at time of sale
   quantity: number
   unitSalePrice: number
   unitCostPrice: number
@@ -80,6 +127,7 @@ export interface SaleItem {
 export interface Sale {
   _id?: ObjectId
   userId: ObjectId
+  businessId: string
   // Legacy fields for backward compatibility
   productId?: ObjectId
   productName?: string
@@ -101,21 +149,13 @@ export interface Sale {
   totalProfit: number
   notes?: string
   createdAt: Date
-  // Aggregated product data (from API joins)
-  product?: {
-    category?: string
-    type?: string
-    size?: string
-    color?: string
-    sku?: string
-    customFields?: Record<string, any>
-  }
 }
 
 // Expense Types
 export interface Expense {
   _id?: ObjectId
   userId: ObjectId
+  businessId: string
   category: string
   description: string
   amount: number
@@ -147,6 +187,7 @@ export interface ProductFormData {
   name: string
   category: string
   type?: string
+  productType?: 'physical' | 'service'
   size?: string
   color?: string
   sku?: string
@@ -157,9 +198,15 @@ export interface ProductFormData {
 }
 
 export interface SaleFormData {
-  productId: string
-  quantity: number
-  unitSalePrice: number
+  items: Array<{
+    itemId: string
+    itemType: 'Product' | 'Service'
+    quantity: number
+    unitPrice: number
+  }>
+  // productId: string // Legacy
+  // quantity: number // Legacy
+  // unitSalePrice: number // Legacy
   saleExpenses: number
   notes?: string
 }

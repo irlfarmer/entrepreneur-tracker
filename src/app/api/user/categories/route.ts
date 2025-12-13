@@ -3,9 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getUserByEmail, updateUser } from "@/lib/database"
 
-// Helper function to check if error is BSON (ObjectId) or MongoDB connection error
+// Helper to handle MongoDB errors
 function handleMongoError(error: any) {
-  // MongoServerSelectionError - cannot connect to database
   if (
     error?.name === "MongoServerSelectionError" ||
     (typeof error?.message === "string" && error.message.includes("Server selection timed out"))
@@ -16,17 +15,6 @@ function handleMongoError(error: any) {
       error: "Cannot connect to database. Please try again later."
     }, { status: 503 })
   }
-  // BSONError - invalid ObjectId string or related
-  if (
-    error?.name === "BSONError" ||
-    (typeof error?.message === "string" && error.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
-  ) {
-    return NextResponse.json({
-      success: false,
-      error: "Invalid user ID"
-    }, { status: 400 })
-  }
-  // Otherwise, don't handle
   return null
 }
 
@@ -43,17 +31,17 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
     }
-    const { type, category } = body
+    const { type, category, businessId } = body
+    const targetBusinessId = businessId || 'default'
 
     if (!type || !category) {
       return NextResponse.json({ error: "Type and category are required" }, { status: 400 })
     }
 
-    if (!['expense', 'product'].includes(type)) {
-      return NextResponse.json({ error: "Invalid type. Must be 'expense' or 'product'" }, { status: 400 })
+    if (!['expense', 'product', 'service'].includes(type)) {
+      return NextResponse.json({ error: "Invalid type. Must be 'expense', 'product', or 'service'" }, { status: 400 })
     }
 
-    // Get current user settings directly from database
     let user
     try {
       user = await getUserByEmail(session.user.email)
@@ -67,43 +55,59 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const currentSettings = user.settings || {}
+    // Find the business profile
+    const profiles = user.businessProfiles || []
+    const profileIndex = profiles.findIndex((p: any) => p.id === targetBusinessId)
 
-    // Add new category to the appropriate array
-    const fieldName = type === 'expense' ? 'customExpenseCategories' : 'customProductCategories'
+    if (profileIndex === -1 && targetBusinessId !== 'default') {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
+    }
+
+    // Make sure we have a profile to work with
+    let targetProfile = profileIndex !== -1 ? profiles[profileIndex] : null
+
+    // If default profile is missing, create it from legacy settings (safety net)
+    if (!targetProfile && targetBusinessId === 'default') {
+      targetProfile = {
+        id: 'default',
+        name: user.companyName || 'Main Business',
+        settings: user.settings || {}
+      }
+      profiles.push(targetProfile)
+    } else if (!targetProfile) {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
+    }
+
+    const currentSettings: any = targetProfile.settings || {}
+    const fieldName = type === 'expense' ? 'customExpenseCategories' :
+      type === 'service' ? 'customServiceCategories' :
+        'customProductCategories'
+
     const currentCategories = currentSettings[fieldName] || []
 
-    // Check if category already exists
     if (currentCategories.includes(category)) {
       return NextResponse.json({ error: "Category already exists" }, { status: 400 })
     }
 
     const updatedCategories = [...currentCategories, category]
-    const updateData = {
-      [`settings.${fieldName}`]: updatedCategories
+
+    // Update the profile in the array
+    if (profileIndex !== -1) {
+      profiles[profileIndex].settings = { ...currentSettings, [fieldName]: updatedCategories }
+    } else {
+      // We pushed it to the end
+      profiles[profiles.length - 1].settings = { ...currentSettings, [fieldName]: updatedCategories }
     }
 
-    let result
-    try {
-      result = await updateUser(user._id!.toString(), updateData)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
+    // Update user
+    const result = await updateUser(user._id!.toString(), { businessProfiles: profiles })
 
     if (result) {
-      return NextResponse.json({ 
-        success: true, 
-        message: "Category added successfully",
-        category
-      })
+      return NextResponse.json({ success: true, message: "Category added successfully", category })
     } else {
       return NextResponse.json({ error: "Failed to add category" }, { status: 500 })
     }
   } catch (error: any) {
-    const response = handleMongoError(error)
-    if (response) return response
     console.error("Error adding category:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -115,81 +119,59 @@ export async function PUT(request: Request) {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    let body
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
-    }
-    const { type, oldCategory, newCategory } = body
+
+    const body = await request.json()
+    const { type, oldCategory, newCategory, businessId } = body
+    const targetBusinessId = businessId || 'default'
 
     if (!type || !oldCategory || !newCategory) {
       return NextResponse.json({ error: "Type, oldCategory, and newCategory are required" }, { status: 400 })
     }
 
-    if (!['expense', 'product'].includes(type)) {
-      return NextResponse.json({ error: "Invalid type. Must be 'expense' or 'product'" }, { status: 400 })
+    let user = await getUserByEmail(session.user.email)
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 })
+
+    const profiles = user.businessProfiles || []
+    const profileIndex = profiles.findIndex((p: any) => p.id === targetBusinessId)
+
+    let targetProfile = profileIndex !== -1 ? profiles[profileIndex] : null
+    if (!targetProfile && targetBusinessId === 'default') {
+      targetProfile = { id: 'default', name: user.companyName, settings: user.settings || {} }
+      profiles.push(targetProfile)
+    } else if (!targetProfile) {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
     }
 
-    // Get current user settings directly from database
-    let user
-    try {
-      user = await getUserByEmail(session.user.email)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
+    const currentSettings: any = targetProfile.settings || {}
+    const fieldName = type === 'expense' ? 'customExpenseCategories' :
+      type === 'service' ? 'customServiceCategories' :
+        'customProductCategories'
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const currentSettings = user.settings || {}
-
-    // Update category in the appropriate array
-    const fieldName = type === 'expense' ? 'customExpenseCategories' : 'customProductCategories'
     const currentCategories = currentSettings[fieldName] || []
 
-    // Check if old category exists
     if (!currentCategories.includes(oldCategory)) {
       return NextResponse.json({ error: "Old category not found" }, { status: 404 })
     }
 
-    // Check if new category already exists
     if (currentCategories.includes(newCategory)) {
       return NextResponse.json({ error: "New category already exists" }, { status: 400 })
     }
 
-    const updatedCategories = currentCategories.map((cat: string) =>
-      cat === oldCategory ? newCategory : cat
-    )
+    const updatedCategories = currentCategories.map((cat: string) => cat === oldCategory ? newCategory : cat)
 
-    const updateData = {
-      [`settings.${fieldName}`]: updatedCategories
-    }
-    let result
-    try {
-      result = await updateUser(user._id!.toString(), updateData)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
+    // Update profile
+    targetProfile.settings = { ...currentSettings, [fieldName]: updatedCategories }
+    if (profileIndex !== -1) profiles[profileIndex] = targetProfile
+    else profiles[profiles.length - 1] = targetProfile
+
+    const result = await updateUser(user._id!.toString(), { businessProfiles: profiles })
 
     if (result) {
-      return NextResponse.json({ 
-        success: true, 
-        message: "Category updated successfully",
-        oldCategory,
-        newCategory
-      })
+      return NextResponse.json({ success: true, message: "Category updated successfully", oldCategory, newCategory })
     } else {
       return NextResponse.json({ error: "Failed to update category" }, { status: 500 })
     }
   } catch (error: any) {
-    const response = handleMongoError(error)
-    if (response) return response
     console.error("Error updating category:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -202,68 +184,51 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // In Next.js 15 dynamic API, searchParams may be async on the request object
-    // Using new URL(request.url) with request.url is still safe, but to guarantee full compatibility,
-    // always await searchParams instantiation if needed (usually not a promise but can be).
-    // If searchParams in URL object is ever async, this lets us handle it.
     const url = new URL(request.url)
-    const searchParams = url.searchParams // Not a Promise, but following Next.js 15 docs, use as variable
-
-    const type = searchParams.get('type')
-    const category = searchParams.get('category')
+    const type = url.searchParams.get('type')
+    const category = url.searchParams.get('category')
+    const businessId = url.searchParams.get('businessId')
+    const targetBusinessId = businessId || 'default'
 
     if (!type || !category) {
       return NextResponse.json({ error: "Type and category are required" }, { status: 400 })
     }
 
-    if (!['expense', 'product'].includes(type)) {
-      return NextResponse.json({ error: "Invalid type. Must be 'expense' or 'product'" }, { status: 400 })
+    let user = await getUserByEmail(session.user.email)
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 })
+
+    const profiles = user.businessProfiles || []
+    const profileIndex = profiles.findIndex((p: any) => p.id === targetBusinessId)
+
+    let targetProfile = profileIndex !== -1 ? profiles[profileIndex] : null
+    if (!targetProfile && targetBusinessId === 'default') {
+      targetProfile = { id: 'default', name: user.companyName, settings: user.settings || {} }
+      profiles.push(targetProfile)
+    } else if (!targetProfile) {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
     }
 
-    // Get current user settings using auth and database, to avoid fetch problems/nextauth url
-    let user
-    try {
-      user = await getUserByEmail(session.user.email)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const currentSettings: any = targetProfile.settings || {}
+    const fieldName = type === 'expense' ? 'customExpenseCategories' :
+      type === 'service' ? 'customServiceCategories' :
+        'customProductCategories'
 
-    const currentSettings = user.settings || {}
-    // Remove category from the appropriate array
-    const fieldName = type === 'expense' ? 'customExpenseCategories' : 'customProductCategories'
     const currentCategories = currentSettings[fieldName] || []
-
     const updatedCategories = currentCategories.filter((cat: string) => cat !== category)
 
-    const updateData = {
-      [`settings.${fieldName}`]: updatedCategories
-    }
+    targetProfile.settings = { ...currentSettings, [fieldName]: updatedCategories }
+    if (profileIndex !== -1) profiles[profileIndex] = targetProfile
+    else profiles[profiles.length - 1] = targetProfile
 
-    let result
-    try {
-      result = await updateUser(user._id!.toString(), updateData)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
+
+    const result = await updateUser(user._id!.toString(), { businessProfiles: profiles })
 
     if (result) {
-      return NextResponse.json({ 
-        success: true, 
-        message: `${type} category removed successfully`
-      })
+      return NextResponse.json({ success: true, message: "Category removed successfully" })
     } else {
       return NextResponse.json({ error: "Failed to remove category" }, { status: 500 })
     }
   } catch (error: any) {
-    const response = handleMongoError(error)
-    if (response) return response
     console.error("Error removing category:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

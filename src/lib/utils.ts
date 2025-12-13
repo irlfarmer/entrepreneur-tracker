@@ -22,13 +22,13 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
 // Format date
 export function formatDate(date: Date | string, format: 'short' | 'long' | 'medium' = 'medium'): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date
-  
+
   const optionsMap = {
     short: { month: 'short', day: 'numeric' } as Intl.DateTimeFormatOptions,
     medium: { month: 'short', day: 'numeric', year: 'numeric' } as Intl.DateTimeFormatOptions,
     long: { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' } as Intl.DateTimeFormatOptions
   }
-  
+
   return dateObj.toLocaleDateString('en-US', optionsMap[format])
 }
 
@@ -49,12 +49,12 @@ export function generateId(): string {
  */
 export function serializeMongoObject<T extends Record<string, any>>(obj: T): any {
   if (!obj) return obj
-  
+
   const serialized: any = {}
-  
+
   for (const key in obj) {
     const value = obj[key]
-    
+
     if (value && typeof value === 'object') {
       // Handle ObjectId
       if (value.toString && typeof value.toString === 'function' && value._bsontype === 'ObjectId') {
@@ -70,7 +70,7 @@ export function serializeMongoObject<T extends Record<string, any>>(obj: T): any
       }
       // Handle arrays
       else if (Array.isArray(value)) {
-        serialized[key] = value.map((item: any) => 
+        serialized[key] = value.map((item: any) =>
           item && typeof item === 'object' ? serializeMongoObject(item) : item
         )
       }
@@ -82,7 +82,7 @@ export function serializeMongoObject<T extends Record<string, any>>(obj: T): any
       serialized[key] = value
     }
   }
-  
+
   return serialized
 }
 
@@ -103,7 +103,7 @@ export function getSaleRevenue(sale: any): number {
   }
   if (sale.items && sale.items.length > 0) {
     // Multi-product sale without pre-calculated total
-    return sale.items.reduce((sum: number, item: any) => 
+    return sale.items.reduce((sum: number, item: any) =>
       sum + ((item.quantity || 0) * (item.unitSalePrice || 0)), 0)
   }
   // Legacy single-product sale
@@ -117,7 +117,7 @@ export function getSaleProfit(sale: any): number {
 export function getSaleProductName(sale: any): string {
   if (sale.items && sale.items.length > 0) {
     if (sale.items.length === 1) {
-      return sale.items[0].productName || 'Unknown Product'
+      return sale.items[0].name || sale.items[0].productName || 'Unknown Product'
     }
     return `Multi-product sale (${sale.items.length} items)`
   }
@@ -126,7 +126,7 @@ export function getSaleProductName(sale: any): string {
 
 export function getSaleProductNames(sale: any): string[] {
   if (sale.items && sale.items.length > 0) {
-    return sale.items.map((item: any) => item.productName || 'Unknown Product')
+    return sale.items.map((item: any) => item.name || item.productName || 'Unknown Product')
   }
   return [sale.productName || 'Unknown Product']
 }

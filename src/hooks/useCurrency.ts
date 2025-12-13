@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useBusiness } from '@/context/BusinessContext'
 
 interface CurrencyData {
   code: string
@@ -7,6 +8,7 @@ interface CurrencyData {
 }
 
 export function useCurrency(): CurrencyData {
+  const { currentBusiness, isLoading } = useBusiness()
   const [currency, setCurrency] = useState({
     code: 'USD',
     symbol: '$',
@@ -14,31 +16,18 @@ export function useCurrency(): CurrencyData {
   })
 
   useEffect(() => {
-    fetchCurrency()
-  }, [])
+    if (!isLoading && currentBusiness) {
+      const settings = currentBusiness.settings
+      const currencyCode = settings?.currency || 'USD'
+      const currencySymbol = getCurrencySymbol(currencyCode)
 
-  const fetchCurrency = async () => {
-    try {
-      const response = await fetch('/api/user/settings')
-      const data = await response.json()
-      
-      if (data.success && data.data.settings?.currency) {
-        const currencyCode = data.data.settings.currency
-        const currencySymbol = getCurrencySymbol(currencyCode)
-        
-        setCurrency({
-          code: currencyCode,
-          symbol: currencySymbol,
-          loading: false
-        })
-      } else {
-        setCurrency(prev => ({ ...prev, loading: false }))
-      }
-    } catch (error) {
-      console.error('Error fetching currency:', error)
-      setCurrency(prev => ({ ...prev, loading: false }))
+      setCurrency({
+        code: currencyCode,
+        symbol: currencySymbol,
+        loading: false
+      })
     }
-  }
+  }, [isLoading, currentBusiness])
 
   return currency
 }

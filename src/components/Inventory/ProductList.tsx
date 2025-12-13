@@ -5,6 +5,7 @@ import Link from "next/link"
 import { formatCurrency, calculateProfitMargin } from "@/lib/utils"
 import { Product } from "@/lib/types"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import { useRouter } from "next/navigation"
 import {
   PencilIcon,
@@ -13,6 +14,7 @@ import {
   ExclamationTriangleIcon,
   DocumentDuplicateIcon
 } from "@heroicons/react/24/outline"
+import { useModal } from "@/context/ModalContext"
 
 interface ProductListProps {
   userId: string
@@ -25,9 +27,11 @@ interface ProductListProps {
 
 export default function ProductList({ userId, searchParams }: ProductListProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { showModal } = useModal()
   const router = useRouter()
 
   useEffect(() => {
@@ -38,6 +42,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
         if (searchParams.search) params.set('search', searchParams.search)
         if (searchParams.category) params.set('category', searchParams.category)
         if (searchParams.lowStock) params.set('lowStock', searchParams.lowStock)
+        params.set('businessId', currentBusiness.id)
 
         const response = await fetch(`/api/products?${params.toString()}`)
         const data = await response.json()
@@ -55,25 +60,33 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
     }
 
     fetchProducts()
-  }, [searchParams])
+  }, [searchParams, currentBusiness.id])
 
-  const handleDelete = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return
+  const handleDelete = (productId: string) => {
+    showModal({
+      title: 'Delete Product',
+      message: 'Are you sure you want to delete this product?',
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/products/${productId}`, {
+            method: 'DELETE'
+          })
+          const data = await response.json()
 
-    try {
-      const response = await fetch(`/api/products/${productId}`, {
-        method: 'DELETE'
-      })
-      const data = await response.json()
-
-      if (data.success) {
-        setProducts(products.filter(p => p._id?.toString() !== productId))
-      } else {
-        alert(data.error || 'Failed to delete product')
+          if (data.success) {
+            setProducts(prev => prev.filter(p => p._id?.toString() !== productId))
+            showModal({ title: 'Success', message: 'Product deleted successfully', type: 'success' })
+          } else {
+            showModal({ title: 'Error', message: data.error || 'Failed to delete product', type: 'error' })
+          }
+        } catch (err) {
+          showModal({ title: 'Error', message: 'Failed to delete product', type: 'error' })
+        }
       }
-    } catch (err) {
-      alert('Failed to delete product')
-    }
+    })
   }
 
   const handleDuplicate = (product: Product) => {
@@ -90,12 +103,12 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
       currentStock: 0, // Reset stock for duplicate
       customFields: product.customFields || {}
     }
-    
+
     // Navigate to add page with duplicate data
     const params = new URLSearchParams()
     params.set('duplicate', 'true')
     params.set('data', JSON.stringify(productData))
-    
+
     router.push(`/inventory/add?${params.toString()}`)
   }
 
@@ -152,7 +165,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
           <p className="text-gray-500 mb-4">
-            {Object.keys(searchParams).length > 0 
+            {Object.keys(searchParams).length > 0
               ? "Try adjusting your filters or search terms."
               : "Get started by adding your first product to inventory."
             }
@@ -169,7 +182,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
           {products.map((product) => {
             const profitMargin = calculateProfitMargin(product.salePrice, product.costPrice)
             const isLowStock = product.currentStock <= 5
-            
+
             return (
               <div key={product._id?.toString()} className="p-6 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between">
@@ -195,7 +208,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
                       {product.sku && (
                         <p className="text-xs text-gray-400">SKU: {product.sku}</p>
                       )}
-                      
+
                       {/* Additional product details */}
                       <div className="flex items-center space-x-3 mt-1">
                         {product.type && (
@@ -214,7 +227,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
                           </span>
                         )}
                       </div>
-                      
+
                       {/* Custom fields preview */}
                       {product.customFields && Object.keys(product.customFields).length > 0 && (
                         <div className="flex items-center space-x-2 mt-1">
@@ -233,7 +246,7 @@ export default function ProductList({ userId, searchParams }: ProductListProps) 
                           </div>
                         </div>
                       )}
-                      
+
                       <div className="flex items-center space-x-4 mt-2">
                         <span className="text-sm text-gray-600">
                           Stock: <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-900'}>{product.currentStock}</span>

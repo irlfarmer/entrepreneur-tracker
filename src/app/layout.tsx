@@ -4,6 +4,9 @@ import "./globals.css";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import SessionProvider from "@/components/SessionProvider";
+import { BusinessProvider } from "@/context/BusinessContext";
+import { ModalProvider } from "@/context/ModalContext";
+import GlobalModal from "@/components/ui/GlobalModal";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,7 +26,12 @@ export default async function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <SessionProvider session={session}>
-          {children}
+          <BusinessProvider>
+            <ModalProvider>
+              {children}
+              <GlobalModal />
+            </ModalProvider>
+          </BusinessProvider>
         </SessionProvider>
       </body>
     </html>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency, getSaleQuantity, getSaleRevenue, getSaleProfit } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
   CurrencyDollarIcon,
   ChartBarIcon,
@@ -16,16 +17,17 @@ interface SalesStatsProps {
 
 export default function SalesStats({ userId }: SalesStatsProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [sales, setSales] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchSales()
-  }, [userId])
+  }, [userId, currentBusiness.id])
 
   const fetchSales = async () => {
     try {
-      const response = await fetch(`/api/sales?userId=${userId}`)
+      const response = await fetch(`/api/sales?userId=${userId}&businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setSales(data.data || [])
@@ -53,13 +55,13 @@ export default function SalesStats({ userId }: SalesStatsProps) {
   // Calculate stats
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
-  
+
   const weekAgo = new Date(today)
   weekAgo.setDate(weekAgo.getDate() - 7)
-  
+
   const monthAgo = new Date(today)
   monthAgo.setMonth(monthAgo.getMonth() - 1)
 

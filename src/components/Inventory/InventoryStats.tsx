@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency, calculateProfitMargin } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
   CubeIcon,
   ExclamationTriangleIcon,
@@ -21,16 +22,17 @@ interface InventoryStatsProps {
 
 export default function InventoryStats({ userId, searchParams }: InventoryStatsProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchProducts()
-  }, [userId])
+  }, [userId, currentBusiness.id])
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch(`/api/products?userId=${userId}`)
+      const response = await fetch(`/api/products?userId=${userId}&businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setProducts(data.data || [])
@@ -60,7 +62,7 @@ export default function InventoryStats({ userId, searchParams }: InventoryStatsP
 
   // Apply category filter
   if (searchParams?.category && searchParams.category !== 'all') {
-    filteredProducts = filteredProducts.filter(product => 
+    filteredProducts = filteredProducts.filter(product =>
       product.category === searchParams.category
     )
   }
@@ -81,13 +83,24 @@ export default function InventoryStats({ userId, searchParams }: InventoryStatsP
   }
 
   // Calculate stats based on filtered products
+  // Calculate stats based on filtered products
+  const physicalProducts = filteredProducts.filter(p => p.productType !== 'service')
+
   const totalProducts = filteredProducts.length
-  const lowStockProducts = filteredProducts.filter(p => p.currentStock <= 5).length
-  const totalValue = filteredProducts.reduce((sum, p) => sum + (p.currentStock * p.salePrice), 0)
-  const totalCost = filteredProducts.reduce((sum, p) => sum + (p.currentStock * p.costPrice), 0)
+  // Only physical products can be low stock. Services with 999999 or N/A shouldn't count.
+  const lowStockProducts = physicalProducts.filter(p => p.currentStock <= 5).length
+
+  // Inventory Value only applies to physical products held in stock
+  const totalValue = physicalProducts.reduce((sum, p) => sum + (p.currentStock * p.salePrice), 0)
+  const totalCost = physicalProducts.reduce((sum, p) => sum + (p.currentStock * p.costPrice), 0)
+
   const totalProfit = totalValue - totalCost
-  const avgProfitMargin = filteredProducts.length > 0 
-    ? filteredProducts.reduce((sum, p) => sum + calculateProfitMargin(p.salePrice, p.costPrice), 0) / filteredProducts.length 
+
+  // Avg Profit Margin - might still include services? 
+  // If service cost is 0, margin is 100%. Ideally we track service profitability too. 
+  // Let's include ALL products in average margin, acknowledging 0 cost services boost this.
+  const avgProfitMargin = filteredProducts.length > 0
+    ? filteredProducts.reduce((sum, p) => sum + calculateProfitMargin(p.salePrice, p.costPrice), 0) / filteredProducts.length
     : 0
 
   const stats = [

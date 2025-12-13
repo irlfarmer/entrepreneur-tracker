@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { Expense } from "@/lib/types"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
+import { useModal } from "@/context/ModalContext"
 import Link from "next/link"
 import {
   PencilIcon,
@@ -23,6 +25,8 @@ interface ExpensesListProps {
 
 export default function ExpensesList({ userId, searchParams }: ExpensesListProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
+  const { showModal } = useModal()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +39,7 @@ export default function ExpensesList({ userId, searchParams }: ExpensesListProps
         if (searchParams.startDate) params.set('startDate', searchParams.startDate)
         if (searchParams.endDate) params.set('endDate', searchParams.endDate)
         if (searchParams.category) params.set('category', searchParams.category)
+        params.set('businessId', currentBusiness.id)
 
         const response = await fetch(`/api/expenses?${params.toString()}`)
         const data = await response.json()
@@ -52,25 +57,33 @@ export default function ExpensesList({ userId, searchParams }: ExpensesListProps
     }
 
     fetchExpenses()
-  }, [searchParams])
+  }, [searchParams, currentBusiness.id])
 
-  const handleDelete = async (expenseId: string) => {
-    if (!confirm('Are you sure you want to delete this expense?')) return
+  const handleDelete = (expenseId: string) => {
+    showModal({
+      title: 'Delete Expense',
+      message: 'Are you sure you want to delete this expense?',
+      type: 'confirm',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/expenses/${expenseId}`, {
+            method: 'DELETE'
+          })
+          const data = await response.json()
 
-    try {
-      const response = await fetch(`/api/expenses/${expenseId}`, {
-        method: 'DELETE'
-      })
-      const data = await response.json()
-
-      if (data.success) {
-        setExpenses(expenses.filter(e => e._id?.toString() !== expenseId))
-      } else {
-        alert(data.error || 'Failed to delete expense')
+          if (data.success) {
+            setExpenses(prev => prev.filter(e => e._id?.toString() !== expenseId))
+            showModal({ title: 'Success', message: 'Expense deleted successfully', type: 'success' })
+          } else {
+            showModal({ title: 'Error', message: data.error || 'Failed to delete expense', type: 'error' })
+          }
+        } catch (err) {
+          showModal({ title: 'Error', message: 'Failed to delete expense', type: 'error' })
+        }
       }
-    } catch (err) {
-      alert('Failed to delete expense')
-    }
+    })
   }
 
   if (loading || currencyLoading) {
@@ -134,7 +147,7 @@ export default function ExpensesList({ userId, searchParams }: ExpensesListProps
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
           <p className="text-gray-500 mb-4">
-            {Object.keys(searchParams).length > 0 
+            {Object.keys(searchParams).length > 0
               ? "Try adjusting your filters or date range."
               : "Start tracking your business expenses to see them here."
             }

@@ -10,15 +10,19 @@ import {
   ChartBarIcon,
   PresentationChartLineIcon,
   CogIcon,
-  XMarkIcon
+  WrenchIcon, // Added WrenchIcon
+  XMarkIcon,
+  DocumentArrowUpIcon // Added DocumentArrowUpIcon
 } from "@heroicons/react/24/outline"
 import { classNames } from "@/lib/utils"
+import BusinessSwitcher from "./BusinessSwitcher"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
   { name: "Inventory", href: "/inventory", icon: CubeIcon },
+  { name: "Services", href: "/services", icon: WrenchIcon },
   { name: "Sales", href: "/sales", icon: CurrencyDollarIcon },
-  { name: "Expenses", href: "/expenses", icon: DocumentChartBarIcon },
+  { name: "Expenses", href: "/expenses", icon: DocumentArrowUpIcon },
   { name: "Finance", href: "/finance", icon: ChartBarIcon },
   { name: "Trends", href: "/trends", icon: PresentationChartLineIcon },
   { name: "Settings", href: "/settings", icon: CogIcon },
@@ -58,11 +62,14 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
-        <nav className="mt-6 px-3">
+        <div className="px-6 py-4">
+          <BusinessSwitcher />
+        </div>
+        <nav className="mt-2 px-3">
           <ul className="space-y-1">
-                              {navigation.map((item) => {
-                    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-                    return (
+            {navigation.map((item) => {
+              const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+              return (
                 <li key={item.name}>
                   <Link
                     href={item.href}
@@ -94,7 +101,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         <div className="flex w-64 flex-col">
           <div className="flex min-h-0 flex-1 flex-col bg-white border-r border-gray-200">
             <div className="flex flex-1 flex-col overflow-y-auto pt-6 pb-4">
-              <nav className="mt-6 flex-1 px-3">
+              <div className="px-6 pb-4">
+                <BusinessSwitcher />
+              </div>
+              <nav className="mt-2 flex-1 px-3">
                 <ul className="space-y-1">
                   {navigation.map((item) => {
                     const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))

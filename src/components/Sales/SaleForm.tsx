@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useCurrency } from "@/hooks/useCurrency"
-import { Product } from "@/lib/types"
+import { useBusiness } from "@/context/BusinessContext"
+import { useModal } from "@/context/ModalContext"
+import { Product, Service } from "@/lib/types"
 import { PlusIcon, XMarkIcon, ShoppingCartIcon } from "@heroicons/react/24/outline"
 
 interface SerializedSale {
@@ -17,8 +19,9 @@ interface SerializedSale {
   unitCostPrice?: number
   // New fields
   items?: Array<{
-    productId: string
-    productName: string
+    itemType: 'Product' | 'Service'
+    itemId: string
+    name: string
     quantity: number
     unitSalePrice: number
     unitCostPrice: number
@@ -55,22 +58,30 @@ interface SaleExpense {
 
 interface SaleItem {
   id: string
-  productId: string
-  productName: string
+  itemId: string
+  itemType: 'Product' | 'Service'
+  name: string
   quantity: number
   unitSalePrice: number
   unitCostPrice: number
   lineTotal: number
   lineProfit: number
   product?: Product
+  service?: Service
   categoryFilter?: string
 }
 
 export default function SaleForm({ userId, sale, isEditing = false }: SaleFormProps) {
   const router = useRouter()
   const { symbol: currencySymbol } = useCurrency()
+  const { currentBusiness } = useBusiness()
+  const { showModal } = useModal()
   const [loading, setLoading] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [selectedCategory, setSelectedCategory] = useState("")
+  const [serviceCategories, setServiceCategories] = useState<string[]>([])
+  const [selectedServiceCategory, setSelectedServiceCategory] = useState("")
   const [saleExpenseCategories, setSaleExpenseCategories] = useState<string[]>([])
   const [saleExpenses, setSaleExpenses] = useState<SaleExpense[]>([])
   const [newCategoryName, setNewCategoryName] = useState("")
@@ -87,24 +98,29 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
     if (sale) {
       if (sale.items && sale.items.length > 0) {
         // Multi-product sale
-        const initialItems: SaleItem[] = sale.items.map((item, index) => ({
-          id: `item-${index}`,
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          unitSalePrice: item.unitSalePrice,
-          unitCostPrice: item.unitCostPrice,
-          lineTotal: item.lineTotal,
-          lineProfit: item.lineProfit,
-          categoryFilter: ""
-        }))
+        const initialItems: SaleItem[] = sale.items.map((item, index) => {
+          const legacyItem = item as any
+          return {
+            id: `item-${index}`,
+            itemId: item.itemId || legacyItem.productId, // Handle legacy
+            itemType: item.itemType || 'Product', // Default to Product
+            name: item.name || legacyItem.productName || 'Unknown Product', // Legacy support
+            quantity: item.quantity,
+            unitSalePrice: item.unitSalePrice,
+            unitCostPrice: item.unitCostPrice,
+            lineTotal: item.lineTotal,
+            lineProfit: item.lineProfit,
+            categoryFilter: ""
+          }
+        })
         setSaleItems(initialItems)
       } else if (sale.productId) {
         // Legacy single-product sale
         const legacyItem: SaleItem = {
           id: 'legacy-item',
-          productId: sale.productId,
-          productName: sale.productName || '',
+          itemId: sale.productId,
+          itemType: 'Product',
+          name: sale.productName || '',
           quantity: sale.quantity || 1,
           unitSalePrice: sale.unitSalePrice || 0,
           unitCostPrice: sale.unitCostPrice || 0,
@@ -137,13 +153,16 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   // Update product references when products are loaded
   useEffect(() => {
     if (products.length > 0) {
-      setSaleItems(prevItems => 
+      setSaleItems(prevItems =>
         prevItems.map(item => {
-          const product = products.find(p => p._id?.toString() === item.productId)
-          return {
-            ...item,
-            product: product
+          if (item.itemType === 'Product') {
+            const product = products.find(p => (p._id as any) === item.itemId || p._id?.toString() === item.itemId)
+            return {
+              ...item,
+              product: product
+            }
           }
+          return item
         })
       )
     }
@@ -151,7 +170,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products')
+      const response = await fetch(`/api/products?businessId=${currentBusiness?.id || 'default'}`)
       const data = await response.json()
       if (data.success) {
         setProducts(data.data)
@@ -160,6 +179,43 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
       console.error('Error fetching products:', error)
     }
   }
+
+  const fetchServiceSettings = async () => {
+    if (!currentBusiness?.id) return
+    try {
+      const res = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
+      const data = await res.json()
+      if (data.success) {
+        setServiceCategories(data.data.settings?.customServiceCategories || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch service settings", error)
+    }
+  }
+
+  const fetchServices = async () => {
+    if (!currentBusiness?.id) return
+    try {
+      const response = await fetch(`/api/services?businessId=${currentBusiness.id}`)
+      const data = await response.json()
+      if (data.success) {
+        setServices(data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching services:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchServices()
+    fetchServiceSettings()
+  }, [currentBusiness?.id])
+
+  // Filtered Services
+  const filteredServices = services.filter(service => {
+    if (!selectedServiceCategory) return true
+    return service.category === selectedServiceCategory
+  })
 
   const fetchSaleExpenseCategories = async () => {
     try {
@@ -179,13 +235,13 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
       .map(product => product.category)
       .filter((category, index, array) => category && array.indexOf(category) === index)
       .sort()
-    
+
     // Add "No Category" option for products without categories
     const hasUncategorized = products.some(product => !product.category)
     if (hasUncategorized) {
       categories.push('No Category')
     }
-    
+
     return categories
   }
 
@@ -241,8 +297,9 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   const addSaleItem = () => {
     const newItem: SaleItem = {
       id: `item-${Date.now()}`,
-      productId: '',
-      productName: '',
+      itemId: '',
+      itemType: 'Product', // Default
+      name: '',
       quantity: 1,
       unitSalePrice: 0,
       unitCostPrice: 0,
@@ -254,31 +311,43 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
   }
 
   const updateSaleItem = (id: string, field: keyof SaleItem, value: string | number) => {
-    setSaleItems(prevItems => 
+    setSaleItems(prevItems =>
       prevItems.map(item => {
         if (item.id === id) {
           const updatedItem = { ...item, [field]: value }
-          
-          // If updating productId, find the product and update related fields
-          if (field === 'productId') {
-            const selectedProduct = products.find(p => p._id?.toString() === value)
-            if (selectedProduct) {
-              updatedItem.productName = selectedProduct.name
-              updatedItem.unitCostPrice = selectedProduct.costPrice
-              updatedItem.unitSalePrice = selectedProduct.salePrice
-              updatedItem.product = selectedProduct
-              // Recalculate line totals when product is selected
-              updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitSalePrice
-              updatedItem.lineProfit = updatedItem.lineTotal - (updatedItem.quantity * updatedItem.unitCostPrice)
+
+          // If updating itemId, find the item and update related fields
+          if (field === 'itemId') {
+            if (item.itemType === 'Product') {
+              const selectedProduct = products.find(p => p._id?.toString() === value)
+              if (selectedProduct) {
+                updatedItem.name = selectedProduct.name
+                updatedItem.unitCostPrice = selectedProduct.costPrice
+                updatedItem.unitSalePrice = selectedProduct.salePrice
+                updatedItem.product = selectedProduct
+                // Recalculate line totals when product is selected
+                updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitSalePrice
+                updatedItem.lineProfit = updatedItem.lineTotal - (updatedItem.quantity * updatedItem.unitCostPrice)
+              }
+            } else if (item.itemType === 'Service') {
+              const selectedService = services.find(s => s._id?.toString() === value)
+              if (selectedService) {
+                updatedItem.name = selectedService.name
+                updatedItem.unitCostPrice = 0
+                updatedItem.unitSalePrice = selectedService.price
+                updatedItem.service = selectedService
+                updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitSalePrice
+                updatedItem.lineProfit = updatedItem.lineTotal // No cost for services usually
+              }
             }
           }
-          
+
           // Recalculate line totals when quantity or prices change
           if (field === 'quantity' || field === 'unitSalePrice' || field === 'unitCostPrice') {
             updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitSalePrice
             updatedItem.lineProfit = updatedItem.lineTotal - (updatedItem.quantity * updatedItem.unitCostPrice)
           }
-          
+
           return updatedItem
         }
         return item
@@ -305,28 +374,29 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
     try {
       // Validate that we have at least one item
       if (saleItems.length === 0) {
-        alert('Please add at least one product to the sale')
+        showModal({ title: 'Validation Error', message: 'Please add at least one item to the sale', type: 'error' })
         setLoading(false)
         return
       }
 
       // Validate all items have required fields
       for (const item of saleItems) {
-        if (!item.productId || item.quantity <= 0 || item.unitSalePrice <= 0) {
-          alert('Please fill in all required fields for each product')
+        if (!item.itemId || item.quantity <= 0 || item.unitSalePrice <= 0) {
+          showModal({ title: 'Validation Error', message: 'Please fill in all required fields for each item', type: 'error' })
           setLoading(false)
           return
         }
       }
 
       const totalSaleExpenses = saleExpenses.reduce((sum, expense) => sum + expense.amount, 0)
-      
+
       const url = isEditing ? `/api/sales/${sale?._id}` : '/api/sales'
       const method = isEditing ? 'PUT' : 'POST'
-      
+
       // Prepare items for API
       const items = saleItems.map(item => ({
-        productId: item.productId,
+        itemId: item.itemId,
+        itemType: item.itemType,
         quantity: item.quantity,
         unitSalePrice: item.unitSalePrice
       }))
@@ -356,10 +426,10 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
         }
         router.refresh()
       } else {
-        alert(data.error || `Failed to ${isEditing ? 'update' : 'record'} sale`)
+        showModal({ title: 'Error', message: data.error || `Failed to ${isEditing ? 'update' : 'record'} sale`, type: 'error' })
       }
     } catch (error) {
-      alert(`Failed to ${isEditing ? 'update' : 'record'} sale`)
+      showModal({ title: 'Error', message: `Failed to ${isEditing ? 'update' : 'record'} sale`, type: 'error' })
     } finally {
       setLoading(false)
     }
@@ -380,7 +450,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           <h3 className="text-lg font-semibold text-gray-900">
             {isEditing ? 'Edit Sale Details' : 'Sale Details'}
           </h3>
-          
+
           <div>
             <label htmlFor="customerName" className="block text-sm font-medium text-gray-700 mb-1">
               Customer Name
@@ -429,7 +499,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
         {/* Sale Summary */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Sale Summary</h3>
-          
+
           <div className="p-4 bg-green-50 rounded-lg space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Total Items:</span>
@@ -449,7 +519,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                 <span className="font-semibold text-blue-600">{currencySymbol}{grossProfit.toFixed(2)}</span>
               </div>
             </div>
-            
+
             {/* Sale Expenses */}
             {totalSaleExpenses > 0 && (
               <div className="border-t pt-2">
@@ -474,30 +544,30 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
         </div>
       </div>
 
-      {/* Products Section */}
+      {/* Products/Services Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Products</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Items</h3>
           <button
             type="button"
             onClick={addSaleItem}
             className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
-            Add Product
+            Add Item
           </button>
         </div>
 
         {saleItems.length === 0 ? (
           <div className="text-center py-8 bg-gray-50 rounded-lg">
             <ShoppingCartIcon className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-            <p className="text-gray-500">No products added yet</p>
+            <p className="text-gray-500">No items added yet</p>
             <button
               type="button"
               onClick={addSaleItem}
               className="mt-2 text-blue-600 hover:text-blue-800"
             >
-              Add your first product
+              Add your first item
             </button>
           </div>
         ) : (
@@ -505,7 +575,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
             {saleItems.map((item, index) => (
               <div key={item.id} className="p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-900">Product {index + 1}</h4>
+                  <h4 className="font-medium text-gray-900">Item {index + 1}</h4>
                   <button
                     type="button"
                     onClick={() => removeSaleItem(item.id)}
@@ -518,55 +588,91 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category Filter
+                      Type
                     </label>
                     <select
-                      value={item.categoryFilter}
-                      onChange={(e) => updateSaleItem(item.id, 'categoryFilter', e.target.value)}
+                      value={item.itemType}
+                      onChange={(e) => {
+                        const newType = e.target.value as 'Product' | 'Service';
+                        setSaleItems(prev => prev.map(i => i.id === item.id ? { ...i, itemType: newType, itemId: '', name: '', unitSalePrice: 0, unitCostPrice: 0, quantity: 1, lineTotal: 0, lineProfit: 0, product: undefined, service: undefined } : i))
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="">All Categories</option>
-                      {getUniqueCategories().map(category => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
+                      <option value="Product">Product</option>
+                      <option value="Service">Service</option>
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Product *
-                    </label>
-                    <select
-                      required
-                      value={item.productId}
-                      onChange={(e) => updateSaleItem(item.id, 'productId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select a product</option>
-                      {(item.categoryFilter ? getProductsByCategory(item.categoryFilter) : products).map(product => {
-                        const productDetails = []
-                        if (product.category) productDetails.push(product.category)
-                        if (product.type) productDetails.push(product.type)
-                        if (product.size) productDetails.push(`Size: ${product.size}`)
-                        if (product.color) productDetails.push(`Color: ${product.color}`)
-                        if (product.sku) productDetails.push(`SKU: ${product.sku}`)
-                        
-                        const detailsText = productDetails.length > 0 ? ` (${productDetails.join(', ')})` : ''
-                        const stockText = product.currentStock > 0 ? ` - Stock: ${product.currentStock}` : ' - Out of Stock'
-                        
-                        return (
-                          <option 
-                            key={product._id?.toString()} 
-                            value={product._id?.toString()}
-                            disabled={product.currentStock === 0}
-                          >
-                            {product.name}{detailsText}{stockText}
+                  {item.itemType === 'Product' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Category Filter
+                      </label>
+                      <select
+                        value={item.categoryFilter}
+                        onChange={(e) => updateSaleItem(item.id, 'categoryFilter', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">All Categories</option>
+                        {getUniqueCategories().map(category => (
+                          <option key={category} value={category}>
+                            {category}
                           </option>
-                        )
-                      })}
-                    </select>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={item.itemType === 'Service' ? "md:col-span-2" : ""}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {item.itemType} *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Service Category Filter */}
+                      {item.itemType === 'Service' && (
+                        <div className="col-span-2 sm:col-span-1">
+                          <select
+                            value={selectedServiceCategory}
+                            onChange={(e) => setSelectedServiceCategory(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">All Categories</option>
+                            {serviceCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className={item.itemType === 'Service' ? "col-span-2 sm:col-span-1" : "col-span-2"}>
+                        <select
+                          value={item.itemId}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            updateSaleItem(item.id, 'itemId', val)
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        >
+                          <option value="">Select a {item.itemType.toLowerCase()}</option>
+                          {item.itemType === 'Product' ? (
+                            products
+                              .filter(p => !selectedCategory || p.category === selectedCategory)
+                              .map(product => (
+                                <option key={product._id?.toString()} value={product._id?.toString()}>
+                                  {product.name} ({currencySymbol}{product.salePrice})
+                                </option>
+                              ))
+                          ) : (
+                            filteredServices.map(service => (
+                              <option key={service._id?.toString()} value={service._id?.toString()}>
+                                {service.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -577,7 +683,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                       type="number"
                       required
                       min="1"
-                      max={item.product?.currentStock || 999}
+                      max={item.itemType === 'Product' ? (item.product?.currentStock || 999) : 9999}
                       value={item.quantity}
                       onChange={(e) => updateSaleItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -743,6 +849,6 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
           {loading ? (isEditing ? "Updating..." : "Recording...") : (isEditing ? "Update Sale" : "Record Sale")}
         </button>
       </div>
-    </form>
+    </form >
   )
 } 

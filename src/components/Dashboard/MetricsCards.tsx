@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
   CurrencyDollarIcon,
   ExclamationTriangleIcon,
@@ -26,16 +27,17 @@ interface Metrics {
 
 export default function MetricsCards({ userId }: MetricsCardsProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchMetrics()
-  }, [userId])
+  }, [userId, currentBusiness.id])
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch(`/api/dashboard/metrics?userId=${userId}`)
+      const response = await fetch(`/api/dashboard/metrics?userId=${userId}&businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setMetrics(data.data)

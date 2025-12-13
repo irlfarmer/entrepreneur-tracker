@@ -31,10 +31,15 @@ function handleMongoError(error: any) {
   return null
 }
 
+// Helper function to get entity field name
+function getEntityFieldName(entityType?: string) {
+  return entityType === 'service' ? 'customServiceFields' : 'customProductFields'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -46,7 +51,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
     }
 
-    const { field } = parsed
+    const { field, entityType, businessId } = parsed
+    const targetBusinessId = businessId || 'default'
 
     if (!field || !field.name || !field.type) {
       return NextResponse.json({ error: "Field name and type are required" }, { status: 400 })
@@ -69,42 +75,44 @@ export async function POST(request: NextRequest) {
       if (response) return response
       throw err
     }
-    
+
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const currentSettings = user.settings || {}
+    const profiles = user.businessProfiles || []
+    const profileIndex = profiles.findIndex((p: any) => p.id === targetBusinessId)
+
+    let targetProfile = profileIndex !== -1 ? profiles[profileIndex] : null
+    if (!targetProfile && targetBusinessId === 'default') {
+      targetProfile = { id: 'default', name: user.companyName, settings: user.settings || {} }
+      profiles.push(targetProfile)
+    } else if (!targetProfile) {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
+    }
+
+    const currentSettings: any = targetProfile.settings || {}
 
     // Add new custom field
-    const currentFields = currentSettings.customProductFields || []
-    
+    const settingField = getEntityFieldName(entityType)
+    const currentFields = currentSettings[settingField] || []
+
     // Check if field already exists
     if (currentFields.some((f: any) => f.name === field.name)) {
       return NextResponse.json({ error: "Field with this name already exists" }, { status: 400 })
     }
 
     const updatedFields = [...currentFields, field]
-    
-    const updateData = {
-      settings: {
-        ...currentSettings,
-        customProductFields: updatedFields
-      }
-    } as Partial<any>
 
-    let result
-    try {
-      result = await updateUser(user._id!.toString(), updateData)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
+    targetProfile.settings = { ...currentSettings, [settingField]: updatedFields }
+    if (profileIndex !== -1) profiles[profileIndex] = targetProfile
+    else profiles[profiles.length - 1] = targetProfile
+
+    const result = await updateUser(user._id!.toString(), { businessProfiles: profiles })
 
     if (result) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: "Custom field added successfully",
         field
       })
@@ -122,7 +130,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -134,7 +142,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
     }
 
-    const { oldFieldName, field } = parsed
+    const { oldFieldName, field, entityType, businessId } = parsed
+    const targetBusinessId = businessId || 'default'
 
     if (!oldFieldName || !field || !field.name || !field.type) {
       return NextResponse.json({ error: "oldFieldName, field name and type are required" }, { status: 400 })
@@ -157,16 +166,28 @@ export async function PUT(request: NextRequest) {
       if (response) return response
       throw err
     }
-    
+
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const currentSettings = user.settings || {}
+    const profiles = user.businessProfiles || []
+    const profileIndex = profiles.findIndex((p: any) => p.id === targetBusinessId)
+
+    let targetProfile = profileIndex !== -1 ? profiles[profileIndex] : null
+    if (!targetProfile && targetBusinessId === 'default') {
+      targetProfile = { id: 'default', name: user.companyName, settings: user.settings || {} }
+      profiles.push(targetProfile)
+    } else if (!targetProfile) {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
+    }
+
+    const currentSettings: any = targetProfile.settings || {}
 
     // Update custom field
-    const currentFields = currentSettings.customProductFields || []
-    
+    const settingField = getEntityFieldName(entityType)
+    const currentFields = currentSettings[settingField] || []
+
     // Check if old field exists
     const oldFieldIndex = currentFields.findIndex((f: any) => f.name === oldFieldName)
     if (oldFieldIndex === -1) {
@@ -180,26 +201,16 @@ export async function PUT(request: NextRequest) {
 
     const updatedFields = [...currentFields]
     updatedFields[oldFieldIndex] = field
-    
-    const updateData = {
-      settings: {
-        ...currentSettings,
-        customProductFields: updatedFields
-      }
-    } as Partial<any>
 
-    let result
-    try {
-      result = await updateUser(user._id!.toString(), updateData)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
-    }
+    targetProfile.settings = { ...currentSettings, [settingField]: updatedFields }
+    if (profileIndex !== -1) profiles[profileIndex] = targetProfile
+    else profiles[profiles.length - 1] = targetProfile
+
+    const result = await updateUser(user._id!.toString(), { businessProfiles: profiles })
 
     if (result) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: "Custom field updated successfully",
         oldFieldName,
         field
@@ -218,21 +229,22 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     let searchParams: URLSearchParams
     try {
-      // In Next.js 15+, request.url is available but searchParams access may require async in the future.
-      // Here, new URL(request.url) is still sync, as NextRequest.url is a plain string.
       const url = new URL(request.url)
       searchParams = url.searchParams
     } catch {
       return NextResponse.json({ error: "Invalid request URL" }, { status: 400 })
     }
     const fieldName = searchParams.get('fieldName')
+    const entityType = searchParams.get('entityType')
+    const businessId = searchParams.get('businessId')
+    const targetBusinessId = businessId || 'default'
 
     if (!fieldName) {
       return NextResponse.json({ error: "Field name is required" }, { status: 400 })
@@ -247,36 +259,38 @@ export async function DELETE(request: NextRequest) {
       if (response) return response
       throw err
     }
-    
+
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const currentSettings = user.settings || {}
+    const profiles = user.businessProfiles || []
+    const profileIndex = profiles.findIndex((p: any) => p.id === targetBusinessId)
 
-    // Remove custom field
-    const currentFields = currentSettings.customProductFields || []
-    const updatedFields = currentFields.filter((f: any) => f.name !== fieldName)
-    
-    const updateData = {
-      settings: {
-        ...currentSettings,
-        customProductFields: updatedFields
-      }
-    } as Partial<any>
-
-    let result
-    try {
-      result = await updateUser(user._id!.toString(), updateData)
-    } catch (err: any) {
-      const response = handleMongoError(err)
-      if (response) return response
-      throw err
+    let targetProfile = profileIndex !== -1 ? profiles[profileIndex] : null
+    if (!targetProfile && targetBusinessId === 'default') {
+      targetProfile = { id: 'default', name: user.companyName, settings: user.settings || {} }
+      profiles.push(targetProfile)
+    } else if (!targetProfile) {
+      return NextResponse.json({ error: "Business profile not found" }, { status: 404 })
     }
 
+    const currentSettings: any = targetProfile.settings || {}
+
+    // Remove custom field
+    const settingField = getEntityFieldName(entityType || 'product')
+    const currentFields = currentSettings[settingField] || []
+    const updatedFields = currentFields.filter((f: any) => f.name !== fieldName)
+
+    targetProfile.settings = { ...currentSettings, [settingField]: updatedFields }
+    if (profileIndex !== -1) profiles[profileIndex] = targetProfile
+    else profiles[profiles.length - 1] = targetProfile
+
+    const result = await updateUser(user._id!.toString(), { businessProfiles: profiles })
+
     if (result) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: "Custom field removed successfully"
       })
     } else {

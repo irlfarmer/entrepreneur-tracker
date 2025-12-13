@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { PlusIcon, XMarkIcon } from "@heroicons/react/24/outline"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useModal } from "@/context/ModalContext"
 import { Expense } from "@/lib/types"
 
 interface ExpenseFormProps {
@@ -30,6 +31,7 @@ const defaultExpenseCategories = [
 export default function ExpenseForm({ userId, expense, isEditing = false }: ExpenseFormProps) {
   const router = useRouter()
   const { symbol: currencySymbol } = useCurrency()
+  const { showModal } = useModal()
   const [loading, setLoading] = useState(false)
   const [userCategories, setUserCategories] = useState<string[]>([])
   const [showAddCategory, setShowAddCategory] = useState(false)
@@ -83,11 +85,13 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
         setFormData(prev => ({ ...prev, category: newCategory.trim() }))
         setNewCategory("")
         setShowAddCategory(false)
+        setNewCategory("")
+        setShowAddCategory(false)
       } else {
-        alert(data.error || 'Failed to add category')
+        showModal({ title: 'Error', message: data.error || 'Failed to add category', type: 'error' })
       }
     } catch (error) {
-      alert('Failed to add category')
+      showModal({ title: 'Error', message: 'Failed to add category', type: 'error' })
     }
   }
 
@@ -128,11 +132,12 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
           router.push('/expenses')
         }
         router.refresh()
+        router.refresh()
       } else {
-        alert(data.error || `Failed to ${isEditing ? 'update' : 'add'} expense`)
+        showModal({ title: 'Error', message: data.error || `Failed to ${isEditing ? 'update' : 'add'} expense`, type: 'error' })
       }
     } catch (error) {
-      alert(`Failed to ${isEditing ? 'update' : 'add'} expense`)
+      showModal({ title: 'Error', message: `Failed to ${isEditing ? 'update' : 'add'} expense`, type: 'error' })
     } finally {
       setLoading(false)
     }
@@ -144,7 +149,7 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
         {/* Expense Information */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Expense Details</h3>
-          
+
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
               Description *
@@ -180,7 +185,7 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
                 </option>
               ))}
             </select>
-            
+
             {/* Add Category Button */}
             <div className="mt-2">
               {!showAddCategory ? (
@@ -267,7 +272,7 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
         {/* Additional Information */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Additional Information</h3>
-          
+
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
               Notes

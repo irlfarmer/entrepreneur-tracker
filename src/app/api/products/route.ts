@@ -22,6 +22,8 @@ export async function GET(requestPromise: Promise<NextRequest>) {
     const search = searchParams.get('search')
     const category = searchParams.get('category')
     const lowStock = searchParams.get('lowStock')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const businessId = searchParams.get('businessId') || 'default'
 
     // Build filter object
     const filters: any = {}
@@ -39,7 +41,7 @@ export async function GET(requestPromise: Promise<NextRequest>) {
       filters.currentStock = { $lte: 5 }
     }
 
-    const products = await getProducts(session.user.id, filters)
+    const products = await getProducts(session.user.id, businessId, filters)
 
     return NextResponse.json<ApiResponse>({
       success: true,
@@ -67,7 +69,7 @@ export async function POST(requestPromise: Promise<NextRequest>) {
     }
 
     const body = await request.json()
-    const { name, category, type, size, color, sku, costPrice, salePrice, currentStock, customFields } = body
+    const { name, category, type, size, color, sku, costPrice, salePrice, currentStock, customFields, businessId, productType } = body
 
     // Validation
     if (!name || !category || costPrice === undefined || salePrice === undefined || currentStock === undefined) {
@@ -86,9 +88,11 @@ export async function POST(requestPromise: Promise<NextRequest>) {
 
     const productId = await createProduct({
       userId: new ObjectId(session.user.id),
+      businessId: businessId || 'default',
       name,
       category,
       type: type || "",
+      productType: productType || "physical",
       size: size || "",
       color: color || "",
       sku: sku || "",

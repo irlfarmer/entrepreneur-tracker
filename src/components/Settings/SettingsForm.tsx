@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useBusiness } from "@/context/BusinessContext"
+import { useModal } from "@/context/ModalContext"
 
 interface SettingsFormProps {
   userId: string
@@ -14,11 +16,11 @@ const currencies = [
   { code: "GBP", symbol: "£", name: "British Pound" },
   { code: "JPY", symbol: "¥", name: "Japanese Yen" },
   { code: "CHF", symbol: "CHF", name: "Swiss Franc" },
-  
+
   // North America
   { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
   { code: "MXN", symbol: "$", name: "Mexican Peso" },
-  
+
   // South America
   { code: "BRL", symbol: "R$", name: "Brazilian Real" },
   { code: "ARS", symbol: "$", name: "Argentine Peso" },
@@ -27,7 +29,7 @@ const currencies = [
   { code: "PEN", symbol: "S/", name: "Peruvian Sol" },
   { code: "UYU", symbol: "$", name: "Uruguayan Peso" },
   { code: "VES", symbol: "Bs", name: "Venezuelan Bolívar" },
-  
+
   // Europe
   { code: "NOK", symbol: "kr", name: "Norwegian Krone" },
   { code: "SEK", symbol: "kr", name: "Swedish Krona" },
@@ -42,7 +44,7 @@ const currencies = [
   { code: "TRY", symbol: "₺", name: "Turkish Lira" },
   { code: "RUB", symbol: "₽", name: "Russian Ruble" },
   { code: "UAH", symbol: "₴", name: "Ukrainian Hryvnia" },
-  
+
   // Asia-Pacific
   { code: "CNY", symbol: "¥", name: "Chinese Yuan" },
   { code: "KRW", symbol: "₩", name: "South Korean Won" },
@@ -61,7 +63,7 @@ const currencies = [
   { code: "AUD", symbol: "A$", name: "Australian Dollar" },
   { code: "NZD", symbol: "NZ$", name: "New Zealand Dollar" },
   { code: "FJD", symbol: "FJ$", name: "Fijian Dollar" },
-  
+
   // Middle East
   { code: "AED", symbol: "د.إ", name: "UAE Dirham" },
   { code: "SAR", symbol: "﷼", name: "Saudi Riyal" },
@@ -74,7 +76,7 @@ const currencies = [
   { code: "ILS", symbol: "₪", name: "Israeli Shekel" },
   { code: "IRR", symbol: "﷼", name: "Iranian Rial" },
   { code: "IQD", symbol: "ع.د", name: "Iraqi Dinar" },
-  
+
   // Africa
   { code: "NGN", symbol: "₦", name: "Nigerian Naira" },
   { code: "ZAR", symbol: "R", name: "South African Rand" },
@@ -94,7 +96,7 @@ const currencies = [
   { code: "TND", symbol: "د.ت", name: "Tunisian Dinar" },
   { code: "DZD", symbol: "د.ج", name: "Algerian Dinar" },
   { code: "LYD", symbol: "ل.د", name: "Libyan Dinar" },
-  
+
   // Other regions
   { code: "PKR", symbol: "₨", name: "Pakistani Rupee" },
   { code: "BDT", symbol: "৳", name: "Bangladeshi Taka" },
@@ -113,7 +115,7 @@ const currencies = [
 const timezones = [
   "UTC",
   "America/New_York",
-  "America/Chicago", 
+  "America/Chicago",
   "America/Denver",
   "America/Los_Angeles",
   "Europe/London",
@@ -127,6 +129,8 @@ const timezones = [
 
 export default function SettingsForm({ userId }: SettingsFormProps) {
   const { data: session, update } = useSession()
+  const { currentBusiness, switchBusiness } = useBusiness() // Used for getting ID and triggering refresh if needed
+  const { showModal } = useModal()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [userData, setUserData] = useState<any>(null)
@@ -142,13 +146,15 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
 
   // Fetch user data
   useEffect(() => {
-    fetchUserData()
-  }, [])
+    if (currentBusiness) {
+      fetchUserData()
+    }
+  }, [currentBusiness.id])
 
   const fetchUserData = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/user/settings')
+      const response = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setUserData(data.data)
@@ -191,13 +197,13 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
     if (file) {
       // Validate file size (max 2MB)
       if (file.size > 2 * 1024 * 1024) {
-        alert('Image size must be less than 2MB')
+        showModal({ title: 'Validation Error', message: 'Image size must be less than 2MB', type: 'error' })
         return
       }
 
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select a valid image file')
+        showModal({ title: 'Validation Error', message: 'Please select a valid image file', type: 'error' })
         return
       }
 
@@ -230,26 +236,40 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          businessId: currentBusiness.id
+        })
       })
 
       const data = await response.json()
 
       if (data.success) {
         // Update the session with new company name
-        await update({
-          ...session,
-          user: {
-            ...session?.user,
-            companyName: formData.companyName
-          }
-        })
-        alert('Settings saved successfully!')
+        // Update the session with new company name if it's the main profile
+        // For sub-profiles, the context/switcher handles the name, might need to trigger reload
+        if (currentBusiness.id === 'default') {
+          // Update session for immediate name change, then reload
+          await update({
+            ...session,
+            user: {
+              ...session?.user,
+              companyName: formData.companyName
+            }
+          })
+          window.location.reload()
+          return
+        } else {
+          // Force page reload to reflect changes in context/sidebar immediately
+          window.location.reload()
+          return
+        }
+        showModal({ title: 'Success', message: 'Settings saved successfully!', type: 'success' })
       } else {
-        alert(data.error || 'Failed to save settings')
+        showModal({ title: 'Error', message: data.error || 'Failed to save settings', type: 'error' })
       }
     } catch (error) {
-      alert('Failed to save settings')
+      showModal({ title: 'Error', message: 'Failed to save settings', type: 'error' })
     } finally {
       setSaving(false)
     }
@@ -317,7 +337,7 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
             </select>
           </div>
         </div>
-        
+
         {/* Profile Image Upload */}
         <div className="mt-6">
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -326,9 +346,9 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
           <div className="flex items-start space-x-4">
             {formData.profileImage && (
               <div className="relative">
-                <img 
-                  src={formData.profileImage} 
-                  alt="Profile" 
+                <img
+                  src={formData.profileImage}
+                  alt="Profile"
                   className="w-20 h-20 rounded-full object-cover border-2 border-gray-300"
                 />
                 <button
@@ -360,7 +380,7 @@ export default function SettingsForm({ userId }: SettingsFormProps) {
             </div>
           </div>
         </div>
-        
+
         <div className="mt-6">
           <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-1">
             Low Stock Threshold

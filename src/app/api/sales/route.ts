@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { createSale, getSalesWithProductDetails, getProductById } from "@/lib/database"
+import { createSale, getSalesWithProductDetails, getProductById, getServiceById } from "@/lib/database"
 import { ApiResponse } from "@/lib/types"
 import { ObjectId } from "mongodb"
 
@@ -31,11 +31,13 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
     const productId = searchParams.get('productId')
     const limit = parseInt(searchParams.get('limit') || '50')
+
     const offset = parseInt(searchParams.get('offset') || '0')
+    const businessId = searchParams.get('businessId') || 'default'
 
     // Build filter object
     const filters: any = {}
-    
+
     if (startDate || endDate) {
       filters.saleDate = {}
       if (startDate) {
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     let sales;
     try {
-      sales = await getSalesWithProductDetails(session.user.id, filters)
+      sales = await getSalesWithProductDetails(session.user.id, businessId, filters)
     } catch (err: any) {
       // Handle MongoServerSelectionError (cannot connect to DB)
       if (
@@ -123,102 +125,127 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const { productId, productName, quantitySold, unitPrice, customerName, saleDate, notes, saleExpenses, items, saleExpenseDetails } = body
+    const { productId, productName, quantitySold, unitPrice, customerName, saleDate, notes, saleExpenses, items, saleExpenseDetails, businessId } = body
 
     // Determine if this is a multi-product sale or legacy single-product sale
     const isMultiProduct = items && Array.isArray(items) && items.length > 0
 
     if (isMultiProduct) {
-      // Multi-product sale validation
+      // Multi-product/service sale validation
       if (items.length === 0) {
         return NextResponse.json<ApiResponse>({
           success: false,
-          error: "At least one product item is required"
+          error: "At least one item is required"
         }, { status: 400 })
       }
 
       for (const item of items) {
-        if (!item.productId || !item.quantity || !item.unitSalePrice) {
+        // Normalizing ID: use itemId if present, else productId (legacy)
+        const id = item.itemId || item.productId
+
+        if (!id || !item.quantity || !item.unitSalePrice) {
           return NextResponse.json<ApiResponse>({
             success: false,
-            error: "Each item must have productId, quantity, and unitSalePrice"
+            error: "Each item must have itemId/productId, quantity, and unitSalePrice"
           }, { status: 400 })
         }
-        if (!isValidObjectId(item.productId)) {
+        if (!isValidObjectId(id)) {
           return NextResponse.json<ApiResponse>({
             success: false,
-            error: `Invalid product ID in items`
+            error: `Invalid item ID in items`
           }, { status: 400 })
         }
-        if (item.quantity <= 0 || item.unitSalePrice <= 0) {
+        if (item.quantity <= 0 || item.unitSalePrice < 0) { // Price can be 0, but quantity > 0
           return NextResponse.json<ApiResponse>({
             success: false,
-            error: "Quantity and price must be positive numbers"
+            error: "Quantity must be positive and price non-negative"
           }, { status: 400 })
         }
       }
 
-      // Fetch all products and validate stock
+      // Fetch items and validate
       const saleItems = []
       let totalSales = 0
       let totalCogs = 0
       let totalProfit = 0
 
       for (const item of items) {
-        let product
+        // Normalize fields
+        const id = item.itemId || item.productId
+        const type = item.itemType || 'Product' // Default to Product for legacy
+
+        let product, service
+
         try {
-          product = await getProductById(item.productId)
+          if (type === 'Product') {
+            product = await getProductById(id)
+          } else {
+            service = await getServiceById(id)
+          }
         } catch (err: any) {
-          // Handle MongoServerSelectionError (DB issue)
+          // ... Error handling same as before ...
           if (
             err?.name === "MongoServerSelectionError" ||
             (typeof err?.message === "string" && err.message.toLowerCase().includes("server selection timed out"))
           ) {
-            console.error("MongoDB connection error: ", err)
             return NextResponse.json<ApiResponse>({
               success: false,
               error: "Cannot connect to database. Please try again later."
             }, { status: 503 })
           }
-          // Handle BSONError
-          if (
-            err?.name === "BSONError" ||
-            (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
-          ) {
-            return NextResponse.json<ApiResponse>({
-              success: false,
-              error: `Invalid product ID format: ${item.productId}`
-            }, { status: 400 })
-          }
           throw err
         }
 
-        if (!product) {
+        if (type === 'Product' && !product) {
           return NextResponse.json<ApiResponse>({
             success: false,
-            error: `Product with ID ${item.productId} not found`
+            error: `Product with ID ${id} not found`
+          }, { status: 404 })
+        }
+        if (type === 'Service' && !service) {
+          return NextResponse.json<ApiResponse>({
+            success: false,
+            error: `Service with ID ${id} not found`
           }, { status: 404 })
         }
 
-        if (product.currentStock < item.quantity) {
+        if (type === 'Product' && product && product.currentStock < item.quantity) {
           return NextResponse.json<ApiResponse>({
             success: false,
             error: `Insufficient stock for product ${product.name}. Available: ${product.currentStock}, Requested: ${item.quantity}`
           }, { status: 400 })
         }
-
         const lineTotal = item.quantity * item.unitSalePrice
-        const lineCogs = item.quantity * (product.costPrice || 0)
+        const lineCogs = type === 'Product' && product ? (item.quantity * (product.costPrice || 0)) : 0
         const lineProfit = lineTotal - lineCogs
 
+        // Build productDetails based on item type
+        let productDetails: any = undefined
+        if (type === 'Product' && product) {
+          productDetails = {
+            category: product.category,
+            type: product.type,
+            size: product.size,
+            color: product.color,
+            sku: product.sku,
+            customFields: product.customFields || {}
+          }
+        } else if (type === 'Service' && service) {
+          productDetails = {
+            category: service.category || undefined
+          }
+        }
+
         saleItems.push({
-          productId: new ObjectId(item.productId),
-          productName: product.name,
+          itemId: new ObjectId(id),
+          itemType: type,
+          name: type === 'Product' ? product!.name : service!.name,
           quantity: item.quantity,
           unitSalePrice: item.unitSalePrice,
-          unitCostPrice: product.costPrice || 0,
+          unitCostPrice: type === 'Product' ? (product!.costPrice || 0) : 0,
           lineTotal,
-          lineProfit
+          lineProfit,
+          productDetails
         })
         totalSales += lineTotal
         totalCogs += lineCogs
@@ -232,6 +259,7 @@ export async function POST(request: NextRequest) {
       try {
         saleId = await createSale({
           userId: new ObjectId(session.user.id),
+          businessId: businessId || 'default',
           items: saleItems,
           customerName: customerName || undefined,
           saleDate: saleDate ? new Date(saleDate) : new Date(),
@@ -254,29 +282,20 @@ export async function POST(request: NextRequest) {
             error: "Cannot connect to database. Please try again later."
           }, { status: 503 })
         }
-        // Handle BSONError
-        if (
-          err?.name === "BSONError" ||
-          (typeof err?.message === "string" && err.message.match(/(input must be a 24 character hex string|invalid ObjectId)/i))
-        ) {
-          return NextResponse.json<ApiResponse>({
-            success: false,
-            error: "Invalid input: failed to parse ObjectId"
-          }, { status: 400 })
-        }
         throw err
       }
-        
+
       return NextResponse.json<ApiResponse>({
         success: true,
-        message: "Multi-product sale recorded successfully",
-        data: { 
+        message: "Sale recorded successfully",
+        data: {
           saleId: saleId.toString(),
           totalSales,
           totalProfit: netProfit,
           itemCount: saleItems.length
         }
       }, { status: 201 })
+
 
     } else {
       // Legacy single-product sale
@@ -353,6 +372,7 @@ export async function POST(request: NextRequest) {
       try {
         saleId = await createSale({
           userId: new ObjectId(session.user.id),
+          businessId: businessId || 'default',
           // Legacy fields
           productId: new ObjectId(productId),
           productName: productName || product.name,
@@ -361,8 +381,9 @@ export async function POST(request: NextRequest) {
           unitCostPrice: product.costPrice || 0,
           // New fields
           items: [{
-            productId: new ObjectId(productId),
-            productName: productName || product.name,
+            itemId: new ObjectId(productId),
+            itemType: 'Product',
+            name: productName || product.name,
             quantity: parseInt(quantitySold),
             unitSalePrice: parseFloat(unitPrice),
             unitCostPrice: product.costPrice || 0,
@@ -415,7 +436,7 @@ export async function POST(request: NextRequest) {
     if (
       (error as any)?.name === "MongoServerSelectionError" ||
       ((typeof (error as any)?.message === "string") &&
-       (error as any).message.toLowerCase().includes("server selection timed out"))
+        (error as any).message.toLowerCase().includes("server selection timed out"))
     ) {
       console.error("MongoDB connection error: ", error)
       return NextResponse.json<ApiResponse>({

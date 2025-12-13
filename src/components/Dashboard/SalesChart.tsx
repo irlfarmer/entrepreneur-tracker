@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency, formatDate, getSaleQuantity, getSaleRevenue, getSaleProfit } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import { ChartBarIcon } from "@heroicons/react/24/outline"
 
 interface ChartData {
@@ -17,6 +18,7 @@ interface SalesChartProps {
 
 export default function SalesChart({ userId }: SalesChartProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [chartData, setChartData] = useState<ChartData[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -28,12 +30,12 @@ export default function SalesChart({ userId }: SalesChartProps) {
         const startDate = new Date()
         startDate.setDate(startDate.getDate() - 7)
 
-        const sales = await fetch(`/api/sales?userId=${userId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`)
+        const sales = await fetch(`/api/sales?userId=${userId}&businessId=${currentBusiness.id}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`)
           .then(res => res.json())
 
         // Process data for chart
         const dailyData: { [key: string]: { sales: number; profit: number } } = {}
-        
+
         // Initialize with zeros for last 7 days
         for (let i = 6; i >= 0; i--) {
           const date = new Date()
@@ -68,7 +70,7 @@ export default function SalesChart({ userId }: SalesChartProps) {
     }
 
     fetchSalesData()
-  }, [userId])
+  }, [userId, currentBusiness.id])
 
   if (loading || currencyLoading) {
     return (

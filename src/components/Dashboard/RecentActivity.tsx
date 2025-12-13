@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { formatCurrency, formatDate, getSaleQuantity, getSaleRevenue, getSaleProductName } from "@/lib/utils"
 import { useCurrency } from "@/hooks/useCurrency"
+import { useBusiness } from "@/context/BusinessContext"
 import {
   CurrencyDollarIcon,
   DocumentTextIcon,
@@ -27,6 +28,7 @@ interface ActivityItem {
 
 export default function RecentActivity({ userId }: RecentActivityProps) {
   const { code: currencyCode, loading: currencyLoading } = useCurrency()
+  const { currentBusiness } = useBusiness()
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -35,8 +37,8 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
       try {
         // Fetch recent sales, expenses, and products
         const [salesRes, expensesRes] = await Promise.all([
-          fetch(`/api/sales?userId=${userId}&limit=5`),
-          fetch(`/api/expenses?userId=${userId}&limit=5`)
+          fetch(`/api/sales?userId=${userId}&businessId=${currentBusiness.id}&limit=5`),
+          fetch(`/api/expenses?userId=${userId}&businessId=${currentBusiness.id}&limit=5`)
         ])
 
         const sales = await salesRes.json()
@@ -50,7 +52,7 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
             const productName = getSaleProductName(sale)
             const quantity = getSaleQuantity(sale)
             const revenue = getSaleRevenue(sale)
-            
+
             allActivities.push({
               id: sale._id,
               type: 'sale',
@@ -92,7 +94,7 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
     }
 
     fetchRecentActivity()
-  }, [userId])
+  }, [userId, currentBusiness.id])
 
   if (loading || currencyLoading) {
     return (
