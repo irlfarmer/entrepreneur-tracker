@@ -1,0 +1,19 @@
+@media print {
+  /* Hide all elements that are not part of the receipt */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure the receipt takes up the full page */
+  .printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Hide elements that should not be printed by default */
+  header, nav, aside, footer {
+    display: none !important;
+  }
+}

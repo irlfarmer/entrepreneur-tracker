@@ -398,6 +398,74 @@ export async function getSalesWithProductDetails(userId: string, businessId: str
   return enrichedSales
 }
 
+export async function getSaleWithProductDetailsById(userId: string, saleId: string) {
+  const client = await clientPromise;
+  const db = client.db(DB_NAME);
+
+  const matchStage: any = {
+    userId: new ObjectId(userId),
+    _id: new ObjectId(saleId)
+  };
+
+  const sales = await db.collection(COLLECTIONS.SALES).find(matchStage).limit(1).toArray();
+
+  if (sales.length === 0) {
+    return null;
+  }
+
+  const sale = sales[0];
+
+  // Enrich sale with product details
+  if (sale.items && Array.isArray(sale.items) && sale.items.length > 0) {
+    const enrichedItems = await Promise.all(
+      sale.items.map(async (item: any) => {
+        if (item.productDetails !== undefined && item.productDetails !== null) {
+          return item;
+        }
+
+        const productIdToLookup = item.itemId || item.productId;
+        if (!productIdToLookup) {
+          return item;
+        }
+
+        const itemType = item.itemType || 'Product';
+        if (itemType === 'Service') {
+          return item;
+        }
+
+        const product = await db.collection(COLLECTIONS.PRODUCTS).findOne({ _id: new ObjectId(productIdToLookup) });
+        return {
+          ...item,
+          productDetails: product ? {
+            category: product.category,
+            type: product.type,
+            size: product.size,
+            color: product.color,
+            sku: product.sku,
+            customFields: product.customFields
+          } : undefined
+        };
+      })
+    );
+    return { ...sale, items: enrichedItems };
+  } else if (sale.productId) {
+    const product = await db.collection(COLLECTIONS.PRODUCTS).findOne({ _id: new ObjectId(sale.productId) });
+    return {
+      ...sale,
+      product: product ? {
+        category: product.category,
+        type: product.type,
+        size: product.size,
+        color: product.color,
+        sku: product.sku,
+        customFields: product.customFields
+      } : null
+    };
+  }
+
+  return sale;
+}
+
 export async function getSaleById(saleId: string) {
   const client = await clientPromise
   const db = client.db(DB_NAME)

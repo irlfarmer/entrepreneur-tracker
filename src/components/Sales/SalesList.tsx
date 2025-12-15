@@ -188,7 +188,7 @@ export default function SalesList({ userId, searchParams }: SalesListProps) {
                               {saleItem.items?.map((item: any, index: number) => (
                                 <div key={index} className="flex flex-wrap gap-1 items-center">
                                   <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">
-                                    {item.productName} (x{item.quantity})
+                                    {item.name} (x{item.quantity})
                                   </span>
 
                                   {/* Product details for each item */}

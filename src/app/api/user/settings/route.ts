@@ -68,24 +68,26 @@ export async function GET(request: NextRequest) {
 
     let settings = user.settings // Fallback
     let companyName = user.companyName
+    let profileImage = user.profileImage // Legacy fallback
 
     if (user.businessProfiles) {
-      const profile = user.businessProfiles.find(b => b.id === targetBusinessId)
+      const profile = user.businessProfiles.find((b: any) => b.id === targetBusinessId)
       if (profile) {
-        if (profile.settings) {
-          settings = profile.settings
-        }
-        if (profile.name) {
-          companyName = profile.name
-        }
+        settings = profile.settings || user.settings
+        companyName = profile.name || user.companyName
+        profileImage = profile.settings?.profileImage || (targetBusinessId === 'default' ? user.profileImage : undefined)
       }
     }
 
     // Construct response data based on context
     const responseData = {
-      ...user,
       companyName,
-      settings
+      businessType: user.businessType,
+      settings: {
+        ...settings,
+        profileImage
+      },
+      createdAt: user.createdAt
     }
 
     return NextResponse.json<ApiResponse>({
@@ -189,6 +191,7 @@ export async function PUT(requestPromise: Promise<NextRequest>) {
           timezone: timezone || currentProfile.settings?.timezone || "UTC",
           enabledFields: enabledFields || currentProfile.settings?.enabledFields || ["category", "type", "size", "color"],
           lowStockThreshold: lowStockThreshold !== undefined ? lowStockThreshold : (currentProfile.settings?.lowStockThreshold ?? 3),
+          profileImage: profileImage !== undefined ? profileImage : currentProfile.settings?.profileImage,
           // Preserve arrays if not provided
           customExpenseCategories: currentProfile.settings?.customExpenseCategories || [],
           customProductCategories: currentProfile.settings?.customProductCategories || [],
@@ -209,16 +212,14 @@ export async function PUT(requestPromise: Promise<NextRequest>) {
       }, { status: 404 })
     }
 
-    // Legacy sync for 'default' profile
+    updatedUser.updatedAt = new Date()
+
+    // If the default profile was updated, sync its name and image to the root for legacy/display purposes
     if (targetBusinessId === 'default') {
-      updatedUser = {
-        ...updatedUser,
-        companyName,
-        profileImage: profileImage !== undefined ? profileImage : user.profileImage,
-        updatedAt: new Date()
+      updatedUser.companyName = companyName
+      if (profileImage !== undefined) {
+        updatedUser.profileImage = profileImage
       }
-    } else {
-      updatedUser.updatedAt = new Date()
     }
 
     try {

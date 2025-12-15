@@ -8,6 +8,7 @@ interface BusinessSettings {
     timezone: string
     enabledFields: string[]
     lowStockThreshold: number
+    profileImage?: string
     customExpenseCategories: string[]
     customProductCategories: string[]
     customProductFields: { name: string; type: 'text' | 'number' | 'select'; options?: string[] }[]

@@ -6,6 +6,7 @@ export interface BusinessSettings {
   timezone: string
   enabledFields: string[]
   lowStockThreshold: number
+  profileImage?: string
   customExpenseCategories: string[]
   customProductCategories: string[]
   customServiceCategories: string[]
