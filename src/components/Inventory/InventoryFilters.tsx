@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline"
+import { usePersistedFilters } from "@/hooks/usePersistedFilters"
 
 const defaultCategories = [
   "Electronics",
@@ -18,14 +18,19 @@ const defaultCategories = [
 ]
 
 export default function InventoryFilters() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { data: session } = useSession()
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  const [search, setSearch] = useState(searchParams.get('search') || '')
-  const [category, setCategory] = useState(searchParams.get('category') || 'all')
-  const [lowStock, setLowStock] = useState(searchParams.get('lowStock') === 'true')
+  const { filters, setFilter, resetFilters } = usePersistedFilters({
+    key: 'inventory_filters',
+    defaultFilters: {
+      search: '',
+      category: 'all',
+      lowStock: false
+    }
+  })
+
+  // Destructure for easier usage
+  const { search, category, lowStock } = filters
   const [categories, setCategories] = useState<string[]>(["All Categories", ...defaultCategories])
 
   // Fetch user's custom categories
@@ -52,58 +57,20 @@ export default function InventoryFilters() {
     }
   }
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const updateFilters = (newSearch?: string, newCategory?: string, newLowStock?: boolean) => {
-    const params = new URLSearchParams()
-    
-    const searchValue = newSearch !== undefined ? newSearch : search
-    const categoryValue = newCategory !== undefined ? newCategory : category
-    const lowStockValue = newLowStock !== undefined ? newLowStock : lowStock
-    
-    if (searchValue) params.set('search', searchValue)
-    if (categoryValue && categoryValue !== 'all') params.set('category', categoryValue)
-    if (lowStockValue) params.set('lowStock', 'true')
-
-    router.push(`/inventory?${params.toString()}`)
-  }
-
   const handleSearchChange = (value: string) => {
-    setSearch(value)
-    
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-    
-    // Set new timeout for debouncing
-    searchTimeoutRef.current = setTimeout(() => {
-      updateFilters(value)
-    }, 500)
+    setFilter('search', value)
   }
 
   const handleCategoryChange = (value: string) => {
-    setCategory(value)
-    updateFilters(undefined, value)
+    setFilter('category', value)
   }
 
   const handleLowStockChange = (checked: boolean) => {
-    setLowStock(checked)
-    updateFilters(undefined, undefined, checked)
+    setFilter('lowStock', checked)
   }
 
   const clearFilters = () => {
-    setSearch('')
-    setCategory('all')
-    setLowStock(false)
-    router.push('/inventory')
+    resetFilters()
   }
 
   const hasActiveFilters = search || category !== 'all' || lowStock
@@ -212,4 +179,4 @@ export default function InventoryFilters() {
       )}
     </div>
   )
-} 
+}
