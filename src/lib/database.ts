@@ -91,12 +91,32 @@ export async function getProducts(userId: string, businessId: string, filters?: 
   const client = await clientPromise
   const db = client.db(DB_NAME)
 
-  const query: any = { userId: new ObjectId(userId), ...filters }
+  const query: any = { userId: new ObjectId(userId) }
+  
+  // Handle business scoping
+  const businessQuery: any = {}
   if (businessId === 'default') {
-    query.$or = [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }]
+    businessQuery.$or = [{ businessId: 'default' }, { businessId: { $exists: false } }, { businessId: null }]
   } else {
-    query.businessId = businessId
+    businessQuery.businessId = businessId
   }
+
+  // Combine filters safely
+  if (filters) {
+    if (filters.$or && businessQuery.$or) {
+      // If both have $or, we need to use $and to combine them
+      query.$and = [
+        businessQuery,
+        filters
+      ]
+    } else {
+      // Merge properties
+      Object.assign(query, businessQuery, filters)
+    }
+  } else {
+    Object.assign(query, businessQuery)
+  }
+
   return await db.collection(COLLECTIONS.PRODUCTS).find(query)
     .sort({ updatedAt: -1 })
     .toArray() as Product[]
