@@ -668,8 +668,8 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                                 ].filter(Boolean).join(' ')
                                 
                                 const label = details 
-                                  ? `${product.name} - ${details} (${currencySymbol}{product.salePrice})`
-                                  : `${product.name} (${currencySymbol}{product.salePrice})`
+                                  ? `${product.name} - ${details} (${currencySymbol}${product.salePrice})`
+                                  : `${product.name} (${currencySymbol}${product.salePrice})`
 
                                 return (
                                   <option key={product._id?.toString()} value={product._id?.toString()}>
