@@ -659,11 +659,24 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                           {item.itemType === 'Product' ? (
                             products
                               .filter(p => !item.categoryFilter || p.category === item.categoryFilter)
-                              .map(product => (
-                                <option key={product._id?.toString()} value={product._id?.toString()}>
-                                  {product.name} ({currencySymbol}{product.salePrice})
-                                </option>
-                              ))
+                              .map(product => {
+                                // Helper to format attributes
+                                const details = [
+                                  product.type,
+                                  product.size,
+                                  product.color
+                                ].filter(Boolean).join(' ')
+                                
+                                const label = details 
+                                  ? `${product.name} - ${details} (${currencySymbol}{product.salePrice})`
+                                  : `${product.name} (${currencySymbol}{product.salePrice})`
+
+                                return (
+                                  <option key={product._id?.toString()} value={product._id?.toString()}>
+                                    {label}
+                                  </option>
+                                )
+                              })
                           ) : (
                             filteredServices.map(service => (
                               <option key={service._id?.toString()} value={service._id?.toString()}>
