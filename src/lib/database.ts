@@ -783,7 +783,7 @@ export async function getDashboardMetrics(userId: string, businessId: string): P
   weekAgo.setDate(weekAgo.getDate() - 7)
 
   const monthAgo = new Date(today)
-  monthAgo.setMonth(monthAgo.getMonth() - 1)
+  monthAgo.setDate(1) // Set to the 1st of the current month
 
   const userObjectId = new ObjectId(userId)
 
