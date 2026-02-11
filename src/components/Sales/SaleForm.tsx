@@ -658,7 +658,7 @@ export default function SaleForm({ userId, sale, isEditing = false }: SaleFormPr
                           <option value="">Select a {item.itemType.toLowerCase()}</option>
                           {item.itemType === 'Product' ? (
                             products
-                              .filter(p => !item.categoryFilter || p.category === item.categoryFilter)
+                              .filter(p => (!item.categoryFilter || p.category === item.categoryFilter) && (isEditing || p.currentStock > 0))
                               .map(product => {
                                 // Helper to format attributes
                                 const details = [
