@@ -18,6 +18,12 @@ export async function getDatabase() {
   return client.db(DB_NAME)
 }
 
+export async function connectToDatabase() {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+  return { db, client }
+}
+
 export function handleMongoError(error: any) {
   console.error("Database Error:", error)
   // Basic error handling for now, returning null to let caller handle generic 500

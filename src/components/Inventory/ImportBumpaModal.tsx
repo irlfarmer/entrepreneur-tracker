@@ -3,7 +3,7 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Papa from "papaparse"
-import { XMarkIcon, ArrowUpTrayIcon, DocumentTextIcon, CheckIcon } from "@heroicons/react/24/outline"
+import { XMarkIcon, ArrowDownTrayIcon, DocumentTextIcon, CheckIcon } from "@heroicons/react/24/outline"
 import { useBusiness } from "@/context/BusinessContext"
 import { useModal } from "@/context/ModalContext"
 import { useCurrency } from "@/hooks/useCurrency"
@@ -23,6 +23,8 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
   const [file, setFile] = useState<File | null>(null)
   const [parsedProducts, setParsedProducts] = useState<any[]>([])
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
+  const [detectedCustomFields, setDetectedCustomFields] = useState<string[]>([])
+  const [selectedCustomFields, setSelectedCustomFields] = useState<Set<string>>(new Set())
   const [isParsing, setIsParsing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
 
@@ -30,6 +32,8 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
     setFile(null)
     setParsedProducts([])
     setSelectedIndices(new Set())
+    setDetectedCustomFields([])
+    setSelectedCustomFields(new Set())
     setIsParsing(false)
     setIsImporting(false)
     if (fileInputRef.current) fileInputRef.current.value = ""
@@ -54,6 +58,13 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
+        const skipKeys = ['Row Type', 'Title', 'Collections', 'SKU', 'Price', 'Cost', 'Stock', 'Type', 'Variant Name', 'Options Values', 'Product Type']
+        const headers = results.meta.fields || []
+        const customKeys = headers.filter(h => !skipKeys.includes(h) && h.trim() !== '')
+        
+        setDetectedCustomFields(customKeys)
+        setSelectedCustomFields(new Set(customKeys))
+
         const products = results.data
           .filter((row: any) => row['Row Type'] === 'product')
           .map((row: any) => {
@@ -111,8 +122,29 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
     }
   }
 
+  const toggleCustomField = (field: string) => {
+    setSelectedCustomFields(prev => {
+      const next = new Set(prev)
+      if (next.has(field)) next.delete(field)
+      else next.add(field)
+      return next
+    })
+  }
+
   const handleImport = async () => {
-    const productsToImport = parsedProducts.filter((_, i) => selectedIndices.has(i))
+    const productsToImport = parsedProducts.filter((_, i) => selectedIndices.has(i)).map(p => {
+      // Filter custom fields based on user selection
+      const filteredFields: Record<string, any> = {}
+      Object.entries(p.customFields).forEach(([key, val]) => {
+        // Map back 'bumpa_product_id' if needed, but the selection uses original keys
+        const originalKey = key === 'bumpa_product_id' ? 'Product ID' : key
+        if (selectedCustomFields.has(originalKey)) {
+          filteredFields[key] = val
+        }
+      })
+      return { ...p, customFields: filteredFields }
+    })
+    
     if (productsToImport.length === 0) return
 
     setIsImporting(true)
@@ -153,7 +185,7 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-900 flex items-center">
-            <ArrowUpTrayIcon className="h-6 w-6 mr-2 text-blue-600" />
+            <ArrowDownTrayIcon className="h-6 w-6 mr-2 text-blue-600" />
             Import Products from Bumpa
           </h2>
           <button onClick={handleClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
@@ -189,12 +221,39 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
               <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                 <div>
                   <h3 className="font-semibold text-gray-900">Preview Import</h3>
-                  <p className="text-sm text-gray-500">Select the products you want to import.</p>
+                  <p className="text-sm text-gray-500">Select the products and fields you want to import.</p>
                 </div>
                 <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
                   {selectedIndices.size} of {parsedProducts.length} selected
                 </div>
               </div>
+
+              {/* Custom Field Selection */}
+              {detectedCustomFields.length > 0 && (
+                <div className="p-4 border-b border-gray-100 bg-white">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Custom Fields to Import</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {detectedCustomFields.map(field => (
+                      <button
+                        key={field}
+                        onClick={() => toggleCustomField(field)}
+                        className={`flex items-center px-3 py-1.5 rounded-lg border text-sm transition-all ${
+                          selectedCustomFields.has(field)
+                            ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600"
+                        }`}
+                      >
+                        {selectedCustomFields.has(field) && <CheckIcon className="h-3.5 w-3.5 mr-1.5" strokeWidth={3} />}
+                        {field}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-400">
+                    Deselect any columns you don't want to save as custom fields.
+                  </p>
+                </div>
+              )}
+
               <div className="overflow-x-auto max-h-[50vh]">
                 <table className="min-w-full divide-y divide-gray-200 relative">
                   <thead className="bg-gray-50 sticky top-0 z-10">
@@ -227,8 +286,16 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 truncate max-w-xs">{product.name}</div>
-                          {Object.keys(product.customFields).length > 0 && (
-                            <div className="text-xs text-gray-500 mt-1">+{Object.keys(product.customFields).length} custom fields</div>
+                          {Object.keys(product.customFields).filter(k => {
+                            const originalKey = k === 'bumpa_product_id' ? 'Product ID' : k
+                            return selectedCustomFields.has(originalKey)
+                          }).length > 0 && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              +{Object.keys(product.customFields).filter(k => {
+                                const originalKey = k === 'bumpa_product_id' ? 'Product ID' : k
+                                return selectedCustomFields.has(originalKey)
+                              }).length} custom fields selected
+                            </div>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>

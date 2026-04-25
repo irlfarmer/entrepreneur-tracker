@@ -47,6 +47,15 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
   const [newField, setNewField] = useState<CustomField>({ name: "", type: "text" })
   const [showAddField, setShowAddField] = useState(false)
   const [newFieldOption, setNewFieldOption] = useState("")
+  
+  // Selection state
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+
+  // Reset selection when tab changes
+  useEffect(() => {
+    setSelectedItems(new Set())
+  }, [activeTab])
 
   useEffect(() => {
     fetchData()
@@ -267,12 +276,97 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
             } else {
               setCustomServiceFields(prev => prev.filter(field => field.name !== fieldName))
             }
+            setSelectedItems(prev => {
+              const next = new Set(prev)
+              next.delete(fieldName)
+              return next
+            })
             showModal({ title: 'Success', message: 'Field deleted successfully', type: 'success' })
           } else {
             showModal({ title: 'Error', message: data.error || 'Failed to delete field', type: 'error' })
           }
         } catch (error) {
           showModal({ title: 'Error', message: 'Failed to delete field', type: 'error' })
+        }
+      }
+    })
+  }
+
+  // Bulk Selection Helpers
+  const toggleSelectItem = (id: string) => {
+    setSelectedItems(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const getActiveTabItems = () => {
+    switch (activeTab) {
+      case 'product-categories': return customProductCategories
+      case 'expense-categories': return customExpenseCategories
+      case 'service-categories': return customServiceCategories
+      case 'fields': return customFields.map(f => f.name)
+      case 'service-fields': return customServiceFields.map(f => f.name)
+      default: return []
+    }
+  }
+
+  const toggleSelectAll = () => {
+    const items = getActiveTabItems()
+    if (selectedItems.size === items.length && items.length > 0) {
+      setSelectedItems(new Set())
+    } else {
+      setSelectedItems(new Set(items))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const items = Array.from(selectedItems)
+    if (items.length === 0) return
+
+    showModal({
+      title: `Delete ${items.length} Items`,
+      message: `Are you sure you want to delete these ${items.length} selected items? This action cannot be undone.`,
+      type: 'confirm',
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        setIsBulkDeleting(true)
+        let successCount = 0
+        let failCount = 0
+
+        try {
+          for (const item of items) {
+            let url = ''
+            if (activeTab.includes('categories')) {
+              const type = activeTab.split('-')[0] as 'product' | 'expense' | 'service'
+              url = `/api/user/categories?type=${type}&category=${encodeURIComponent(item)}&businessId=${businessId || ''}`
+            } else {
+              const entityType = activeTab === 'fields' ? 'product' : 'service'
+              url = `/api/user/custom-fields?fieldName=${encodeURIComponent(item)}&entityType=${entityType}&businessId=${businessId || ''}`
+            }
+
+            const response = await fetch(url, { method: 'DELETE' })
+            const data = await response.json()
+            if (data.success) successCount++
+            else failCount++
+          }
+
+          // Refresh data
+          await fetchData()
+          setSelectedItems(new Set())
+          
+          showModal({
+            title: 'Bulk Delete Complete',
+            message: `Successfully deleted ${successCount} items.${failCount > 0 ? ` Failed to delete ${failCount} items.` : ''}`,
+            type: successCount > 0 ? 'success' : 'error'
+          })
+        } catch (error) {
+          showModal({ title: 'Error', message: 'An unexpected error occurred during bulk delete.', type: 'error' })
+        } finally {
+          setIsBulkDeleting(false)
         }
       }
     })
@@ -375,59 +469,98 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
 
         {/* Categories List */}
         <div className="space-y-2">
+          {categories.length > 0 && (
+            <div className="flex items-center px-3 py-2 bg-gray-50/50 rounded-lg border border-gray-100">
+              <button
+                onClick={toggleSelectAll}
+                className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  selectedItems.size === categories.length && categories.length > 0
+                    ? "bg-blue-600 border-blue-600"
+                    : selectedItems.size > 0
+                    ? "bg-blue-100 border-blue-400"
+                    : "border-gray-300 hover:border-blue-400"
+                }`}
+              >
+                {selectedItems.size === categories.length && categories.length > 0 && (
+                  <CheckIcon className="h-3 w-3 text-white" strokeWidth={3} />
+                )}
+                {selectedItems.size > 0 && selectedItems.size < categories.length && (
+                  <span className="block w-2 h-0.5 bg-blue-600 rounded" />
+                )}
+              </button>
+              <span className="ml-3 text-sm font-medium text-gray-500">
+                Select All {categoryType} Categories
+              </span>
+            </div>
+          )}
+
           {categories.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
               No custom {categoryType.toLowerCase()} categories yet. Add your first category above.
             </p>
           ) : (
             categories.map((category) => (
-              <div key={category} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                {editingCategory === category ? (
-                  <div className="flex items-center space-x-3 flex-1">
-                    <input
-                      type="text"
-                      value={editCategoryValue}
-                      onChange={(e) => setEditCategoryValue(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      onKeyPress={(e) => e.key === 'Enter' && updateCategory(type, category, editCategoryValue)}
-                    />
-                    <button
-                      onClick={() => updateCategory(type, category, editCategoryValue)}
-                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      <CheckIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setEditingCategory(null)}
-                      className="px-3 py-2 text-gray-600 hover:text-gray-700"
-                    >
-                      <XMarkIcon className="h-4 w-4" />
-                    </button>
+              <div key={category} className={`flex items-center justify-between p-3 rounded-lg transition-colors ${selectedItems.has(category) ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                <div className="flex items-center flex-1">
+                  <button
+                    onClick={() => toggleSelectItem(category)}
+                    className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedItems.has(category)
+                        ? "bg-blue-600 border-blue-600"
+                        : "border-gray-300 hover:border-blue-400"
+                    }`}
+                  >
+                    {selectedItems.has(category) && <CheckIcon className="h-3 w-3 text-white" strokeWidth={3} />}
+                  </button>
+                  <div className="ml-3 flex-1">
+                    {editingCategory === category ? (
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="text"
+                          value={editCategoryValue}
+                          onChange={(e) => setEditCategoryValue(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          onKeyPress={(e) => e.key === 'Enter' && updateCategory(type, category, editCategoryValue)}
+                        />
+                        <button
+                          onClick={() => updateCategory(type, category, editCategoryValue)}
+                          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                        >
+                          <CheckIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setEditingCategory(null)}
+                          className="px-3 py-2 text-gray-600 hover:text-gray-700"
+                        >
+                          <XMarkIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-900 font-medium">{category}</span>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              setEditingCategory(category)
+                              setEditCategoryValue(category)
+                            }}
+                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                            title="Edit Category"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteCategory(type, category)}
+                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                            title="Delete Category"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <span className="text-gray-900 font-medium">{category}</span>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => {
-                          setEditingCategory(category)
-                          setEditCategoryValue(category)
-                        }}
-                        className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="Edit Category"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteCategory(type, category)}
-                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                        title="Delete Category"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </>
-                )}
+                </div>
               </div>
             ))
           )}
@@ -518,7 +651,40 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
       </div>
 
       {/* Tab Content */}
-      <div className="p-6">
+      <div className="p-6 pb-24 relative">
+        {/* Floating Bulk Action Bar */}
+        <div
+          style={{
+            transform: selectedItems.size > 0 ? "translateY(0)" : "translateY(120%)",
+            opacity: selectedItems.size > 0 ? 1 : 0,
+            transition: "transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s ease",
+            pointerEvents: selectedItems.size > 0 ? "auto" : "none",
+          }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-6 py-3.5 bg-gray-900 text-white rounded-2xl shadow-2xl"
+        >
+          <span className="text-sm font-medium">
+            <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-500 rounded-full text-xs font-bold mr-2">
+              {selectedItems.size}
+            </span>
+            items selected
+          </span>
+          <div className="w-px h-5 bg-white/20" />
+          <button
+            onClick={() => setSelectedItems(new Set())}
+            className="text-sm text-gray-300 hover:text-white transition-colors"
+          >
+            Clear
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isBulkDeleting}
+            className="flex items-center gap-2 px-4 py-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
+          >
+            <TrashIcon className="h-4 w-4" />
+            {isBulkDeleting ? "Deleting…" : `Delete Selected`}
+          </button>
+        </div>
+
         {activeTab === 'product-categories' && renderCategoryManagement('product')}
         {activeTab === 'expense-categories' && renderCategoryManagement('expense')}
         {activeTab === 'service-categories' && renderCategoryManagement('service')}
@@ -663,13 +829,50 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
 
         {/* Fields List */}
         <div className="space-y-2">
+          {currentFieldsList.length > 0 && (
+            <div className="flex items-center px-4 py-2 bg-gray-50/50 rounded-lg border border-gray-100">
+              <button
+                onClick={toggleSelectAll}
+                className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  selectedItems.size === currentFieldsList.length && currentFieldsList.length > 0
+                    ? "bg-blue-600 border-blue-600"
+                    : selectedItems.size > 0
+                    ? "bg-blue-100 border-blue-400"
+                    : "border-gray-300 hover:border-blue-400"
+                }`}
+              >
+                {selectedItems.size === currentFieldsList.length && currentFieldsList.length > 0 && (
+                  <CheckIcon className="h-3 w-3 text-white" strokeWidth={3} />
+                )}
+                {selectedItems.size > 0 && selectedItems.size < currentFieldsList.length && (
+                  <span className="block w-2 h-0.5 bg-blue-600 rounded" />
+                )}
+              </button>
+              <span className="ml-3 text-sm font-medium text-gray-500">
+                Select All {entityName} Fields
+              </span>
+            </div>
+          )}
+
           {currentFieldsList.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
               No custom fields yet. Add your first field above.
             </p>
           ) : (
             currentFieldsList.map((field) => (
-              <div key={field.name} className="bg-gray-50 rounded-lg p-4">
+              <div key={field.name} className={`rounded-lg p-4 transition-colors ${selectedItems.has(field.name) ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                <div className="flex items-start">
+                  <button
+                    onClick={() => toggleSelectItem(field.name)}
+                    className={`mt-1 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+                      selectedItems.has(field.name)
+                        ? "bg-blue-600 border-blue-600"
+                        : "border-gray-300 hover:border-blue-400"
+                    }`}
+                  >
+                    {selectedItems.has(field.name) && <CheckIcon className="h-3 w-3 text-white" strokeWidth={3} />}
+                  </button>
+                  <div className="ml-3 flex-1">
                 {editingField === field.name ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -800,7 +1003,9 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
                       </button>
                     </div>
                   </div>
-                )}
+                    )}
+                  </div>
+                </div>
               </div>
             ))
           )}

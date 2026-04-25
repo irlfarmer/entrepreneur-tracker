@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { createProducts, getUserById, updateUser } from "@/lib/database"
+import { connectToDatabase, getUserById, updateUser } from "@/lib/database"
 import { ApiResponse } from "@/lib/types"
 import { ObjectId } from "mongodb"
 
@@ -84,28 +84,88 @@ export async function POST(requestPromise: Promise<NextRequest>) {
       }
     }
 
-    // Step 3: Map the products array to ensure all required fields and correct types
-    const productsData = products.map((product: any) => ({
-      userId: new ObjectId(session.user.id),
-      businessId: targetBusinessId,
-      name: product.name || "Unknown Product",
-      category: product.category || "Uncategorized",
-      type: product.type || "",
-      size: product.size || "",
-      color: product.color || "",
-      sku: product.sku || "",
-      costPrice: parseFloat(product.costPrice) || 0,
-      salePrice: parseFloat(product.salePrice) || 0,
-      currentStock: parseInt(product.currentStock) || 0,
-      customFields: product.customFields || {}
-    }))
+    // Step 3: Upsert — match existing products by identity fields; if found, increment stock only
+    const { db: productDb } = await connectToDatabase()
+    let insertedCount = 0
+    let updatedCount = 0
+    const insertedIds: string[] = []
 
-    const insertedIds = await createProducts(productsData)
+    for (const product of products) {
+      const name = product.name || "Unknown Product"
+      const category = product.category || "Uncategorized"
+      const type = product.type || ""
+      const size = product.size || ""
+      const color = product.color || ""
+      const sku = product.sku || ""
+      const incomingStock = parseInt(product.currentStock) || 0
+
+      // Build a match query using all identity fields
+      const matchQuery: any = {
+        userId: new ObjectId(session.user.id),
+        name,
+        category,
+        type,
+        size,
+        color,
+      }
+      // Only match on SKU if the product has one
+      if (sku) matchQuery.sku = sku
+
+      // Business scoping
+      if (targetBusinessId === "default") {
+        matchQuery.$or = [
+          { businessId: "default" },
+          { businessId: { $exists: false } },
+          { businessId: null },
+        ]
+      } else {
+        matchQuery.businessId = targetBusinessId
+      }
+
+      const existing = await productDb.collection("products").findOne(matchQuery)
+
+      if (existing) {
+        // Product already exists — just add the incoming stock
+        await productDb.collection("products").updateOne(
+          { _id: existing._id },
+          {
+            $inc: { currentStock: incomingStock },
+            $set: { updatedAt: new Date() },
+          }
+        )
+        updatedCount++
+      } else {
+        // New product — insert it
+        const now = new Date()
+        const result = await productDb.collection("products").insertOne({
+          userId: new ObjectId(session.user.id),
+          businessId: targetBusinessId,
+          name,
+          category,
+          type,
+          size,
+          color,
+          sku,
+          costPrice: parseFloat(product.costPrice) || 0,
+          salePrice: parseFloat(product.salePrice) || 0,
+          currentStock: incomingStock,
+          customFields: product.customFields || {},
+          createdAt: now,
+          updatedAt: now,
+        })
+        insertedIds.push(result.insertedId.toString())
+        insertedCount++
+      }
+    }
+
+    const parts: string[] = []
+    if (insertedCount > 0) parts.push(`${insertedCount} product${insertedCount !== 1 ? "s" : ""} imported`)
+    if (updatedCount > 0) parts.push(`${updatedCount} existing product${updatedCount !== 1 ? "s" : ""} updated`)
 
     return NextResponse.json<ApiResponse>({
       success: true,
-      message: `${insertedIds.length} products imported successfully`,
-      data: { insertedIds: insertedIds.map((id: any) => id.toString()) }
+      message: parts.join(", "),
+      data: { insertedIds, insertedCount, updatedCount }
     }, { status: 201 })
 
   } catch (error) {
