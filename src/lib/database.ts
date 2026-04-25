@@ -87,6 +87,22 @@ export async function createProduct(productData: Omit<Product, '_id' | 'createdA
   return result.insertedId
 }
 
+export async function createProducts(productsData: Omit<Product, '_id' | 'createdAt' | 'updatedAt'>[]) {
+  const client = await clientPromise
+  const db = client.db(DB_NAME)
+
+  const products: Product[] = productsData.map(productData => ({
+    ...productData,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }))
+
+  if (products.length === 0) return []
+
+  const result = await db.collection(COLLECTIONS.PRODUCTS).insertMany(products)
+  return Object.values(result.insertedIds)
+}
+
 export async function getProducts(userId: string, businessId: string, filters?: any) {
   const client = await clientPromise
   const db = client.db(DB_NAME)

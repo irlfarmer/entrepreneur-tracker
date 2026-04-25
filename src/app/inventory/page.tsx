@@ -8,6 +8,7 @@ import InventoryFilters from "@/components/Inventory/InventoryFilters"
 import InventoryStats from "@/components/Inventory/InventoryStats"
 import Link from "next/link"
 import { PlusIcon, Cog6ToothIcon } from "@heroicons/react/24/outline"
+import InventoryActions from "@/components/Inventory/InventoryActions"
 
 interface InventoryPageProps {
   searchParams: Promise<{
@@ -36,21 +37,15 @@ export default async function InventoryPage({ searchParams }: InventoryPageProps
               Manage your products and track stock levels
             </p>
           </div>
-          <div className="mt-4 sm:mt-0 flex space-x-3">
+          <div className="mt-4 sm:mt-0 flex space-x-3 items-center">
             <Link
               href="/inventory/settings"
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors bg-white shadow-sm"
             >
               <Cog6ToothIcon className="h-5 w-5 mr-2" />
               Settings
             </Link>
-            <Link
-              href="/inventory/add"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add Product
-            </Link>
+            <InventoryActions />
           </div>
         </div>
 
