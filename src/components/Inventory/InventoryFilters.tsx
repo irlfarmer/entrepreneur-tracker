@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { MagnifyingGlassIcon, FunnelIcon } from "@heroicons/react/24/outline"
 import { usePersistedFilters } from "@/hooks/usePersistedFilters"
+import { useBusiness } from "@/context/BusinessContext"
 
 const defaultCategories = [
   "Electronics",
@@ -19,6 +20,7 @@ const defaultCategories = [
 
 export default function InventoryFilters() {
   const { data: session } = useSession()
+  const { currentBusiness } = useBusiness()
   
   const { filters, setFilter, resetFilters } = usePersistedFilters({
     key: 'inventory_filters',
@@ -35,14 +37,14 @@ export default function InventoryFilters() {
 
   // Fetch user's custom categories
   useEffect(() => {
-    if (session?.user?.id) {
+    if (session?.user?.id && currentBusiness?.id) {
       fetchUserCategories()
     }
-  }, [session?.user?.id])
+  }, [session?.user?.id, currentBusiness?.id])
 
   const fetchUserCategories = async () => {
     try {
-      const response = await fetch('/api/user/settings')
+      const response = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
       const data = await response.json()
       
       if (data.success && data.data?.settings?.customProductCategories) {

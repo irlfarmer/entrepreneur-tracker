@@ -73,7 +73,7 @@ export default function ProductForm({ product, isEditing = false, duplicateData 
         costPrice: product.costPrice?.toString() || "",
         salePrice: product.salePrice?.toString() || "",
         currentStock: product.currentStock?.toString() || "",
-        customFieldValues: (product as any)?.customFieldValues || {}
+        customFieldValues: product.customFields || (product as any)?.customFieldValues || {}
       }
     } else {
       return {
@@ -96,11 +96,12 @@ export default function ProductForm({ product, isEditing = false, duplicateData 
 
   useEffect(() => {
     fetchUserSettings()
-  }, [])
+  }, [currentBusiness?.id])
 
   const fetchUserSettings = async () => {
+    if (!currentBusiness?.id) return
     try {
-      const response = await fetch('/api/user/settings')
+      const response = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         const customCategories = data.data.settings?.customProductCategories || []
@@ -127,7 +128,8 @@ export default function ProductForm({ product, isEditing = false, duplicateData 
         },
         body: JSON.stringify({
           type: 'product',
-          category: newCategory.trim()
+          category: newCategory.trim(),
+          businessId: currentBusiness.id
         })
       })
 
@@ -135,8 +137,6 @@ export default function ProductForm({ product, isEditing = false, duplicateData 
       if (data.success) {
         setUserCategories([...userCategories, newCategory.trim()])
         setFormData(prev => ({ ...prev, category: newCategory.trim() }))
-        setNewCategory("")
-        setShowAddCategory(false)
         setNewCategory("")
         setShowAddCategory(false)
       } else {
@@ -157,15 +157,15 @@ export default function ProductForm({ product, isEditing = false, duplicateData 
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          field: newField
+          field: newField,
+          entityType: 'product',
+          businessId: currentBusiness.id
         })
       })
 
       const data = await response.json()
       if (data.success) {
         setCustomFields([...customFields, newField])
-        setNewField({ name: "", type: "text" })
-        setShowFieldManager(false)
         setNewField({ name: "", type: "text" })
         setShowFieldManager(false)
       } else {
@@ -216,6 +216,7 @@ export default function ProductForm({ product, isEditing = false, duplicateData 
         },
         body: JSON.stringify({
           ...formData,
+          customFields: formData.customFieldValues,
           businessId: currentBusiness.id,
           // If service, cost price defaults to 0 if not set (or effectively 0 since hidden)
           costPrice: formData.productType === 'service' ? 0 : formData.costPrice,

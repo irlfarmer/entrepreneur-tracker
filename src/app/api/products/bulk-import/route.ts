@@ -54,9 +54,20 @@ export async function POST(requestPromise: Promise<NextRequest>) {
         const currentSettings: any = targetProfile.settings || {}
         
         // Handle Categories
+        const defaultProductCategories = [
+          "Electronics",
+          "Clothing",
+          "Books",
+          "Home & Garden",
+          "Sports",
+          "Toys",
+          "Health & Beauty",
+          "Automotive",
+          "Other"
+        ]
         const currentCategories = currentSettings.customProductCategories || []
         const categoriesToAdd = Array.from(newCategories).filter(
-          cat => !currentCategories.includes(cat) && cat !== "Uncategorized"
+          cat => !currentCategories.includes(cat) && !defaultProductCategories.includes(cat) && cat !== "Uncategorized"
         )
         const updatedCategories = [...currentCategories, ...categoriesToAdd]
 
@@ -79,7 +90,15 @@ export async function POST(requestPromise: Promise<NextRequest>) {
           if (profileIndex !== -1) profiles[profileIndex] = targetProfile
           else profiles[profiles.length - 1] = targetProfile
           
-          await updateUser(user._id!.toString(), { businessProfiles: profiles })
+          const updateData: any = { businessProfiles: profiles }
+          if (targetBusinessId === 'default') {
+            updateData.settings = {
+              ...(user.settings || {}),
+              customProductCategories: updatedCategories,
+              customProductFields: updatedFields
+            }
+          }
+          await updateUser(user._id!.toString(), updateData)
         }
       }
     }
@@ -125,12 +144,16 @@ export async function POST(requestPromise: Promise<NextRequest>) {
       const existing = await productDb.collection("products").findOne(matchQuery)
 
       if (existing) {
-        // Product already exists — just add the incoming stock
+        // Product already exists — add the incoming stock and update prices
         await productDb.collection("products").updateOne(
           { _id: existing._id },
           {
             $inc: { currentStock: incomingStock },
-            $set: { updatedAt: new Date() },
+            $set: {
+              costPrice: parseFloat(product.costPrice) || 0,
+              salePrice: parseFloat(product.salePrice) || 0,
+              updatedAt: new Date()
+            },
           }
         )
         updatedCount++

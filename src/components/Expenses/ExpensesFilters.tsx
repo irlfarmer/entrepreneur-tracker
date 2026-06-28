@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { CalendarIcon, FunnelIcon } from "@heroicons/react/24/outline"
+import { useBusiness } from "@/context/BusinessContext"
 
 const defaultExpenseCategories = [
   "Office Supplies",
@@ -24,6 +25,7 @@ export default function ExpensesFilters() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = useSession()
+  const { currentBusiness } = useBusiness()
   
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
   const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
@@ -32,14 +34,14 @@ export default function ExpensesFilters() {
 
   // Fetch user's custom expense categories
   useEffect(() => {
-    if (session?.user?.id) {
+    if (session?.user?.id && currentBusiness?.id) {
       fetchUserCategories()
     }
-  }, [session?.user?.id])
+  }, [session?.user?.id, currentBusiness?.id])
 
   const fetchUserCategories = async () => {
     try {
-      const response = await fetch('/api/user/settings')
+      const response = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
       const data = await response.json()
       
       if (data.success && data.data?.settings?.customExpenseCategories) {

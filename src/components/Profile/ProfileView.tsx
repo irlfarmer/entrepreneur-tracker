@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { getSaleRevenue } from "@/lib/utils"
+import { useBusiness } from "@/context/BusinessContext"
 import { 
   UserIcon, 
   BuildingOfficeIcon, 
@@ -28,18 +29,21 @@ interface UserStats {
 
 export default function ProfileView({ userId }: ProfileViewProps) {
   const { data: session } = useSession()
+  const { currentBusiness } = useBusiness()
   const [loading, setLoading] = useState(true)
   const [userData, setUserData] = useState<any>(null)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
 
   useEffect(() => {
-    fetchUserData()
-    fetchUserStats()
-  }, [])
+    if (currentBusiness?.id) {
+      fetchUserData()
+      fetchUserStats()
+    }
+  }, [currentBusiness?.id])
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch('/api/user/settings')
+      const response = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         setUserData(data.data)
@@ -52,9 +56,9 @@ export default function ProfileView({ userId }: ProfileViewProps) {
   const fetchUserStats = async () => {
     try {
       const [productsRes, salesRes, expensesRes] = await Promise.all([
-        fetch('/api/products'),
-        fetch('/api/sales'),
-        fetch('/api/expenses')
+        fetch(`/api/products?businessId=${currentBusiness.id}`),
+        fetch(`/api/sales?businessId=${currentBusiness.id}`),
+        fetch(`/api/expenses?businessId=${currentBusiness.id}`)
       ])
 
       const [productsData, salesData, expensesData] = await Promise.all([

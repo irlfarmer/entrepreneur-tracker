@@ -48,11 +48,12 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
 
   useEffect(() => {
     fetchUserCategories()
-  }, [])
+  }, [currentBusiness?.id])
 
   const fetchUserCategories = async () => {
+    if (!currentBusiness?.id) return
     try {
-      const response = await fetch('/api/user/settings')
+      const response = await fetch(`/api/user/settings?businessId=${currentBusiness.id}`)
       const data = await response.json()
       if (data.success) {
         const customCategories = data.data.settings?.customExpenseCategories || []
@@ -77,7 +78,8 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
         },
         body: JSON.stringify({
           type: 'expense',
-          category: newCategory.trim()
+          category: newCategory.trim(),
+          businessId: currentBusiness.id
         })
       })
 
@@ -85,8 +87,6 @@ export default function ExpenseForm({ userId, expense, isEditing = false }: Expe
       if (data.success) {
         setUserCategories([...userCategories, newCategory.trim()])
         setFormData(prev => ({ ...prev, category: newCategory.trim() }))
-        setNewCategory("")
-        setShowAddCategory(false)
         setNewCategory("")
         setShowAddCategory(false)
       } else {
