@@ -243,7 +243,19 @@ export async function GET(request: NextRequest) {
             normalizedItems: {
               $cond: [
                 { $and: [{ $ne: ['$items', null] }, { $isArray: '$items' }] },
-                '$items',
+                {
+                  $map: {
+                    input: '$items',
+                    as: 'item',
+                    in: {
+                      productId: { $ifNull: ['$$item.productId', '$$item.itemId'] },
+                      productName: { $ifNull: ['$$item.productName', '$$item.name'] },
+                      quantity: '$$item.quantity',
+                      unitSalePrice: '$$item.unitSalePrice',
+                      lineTotal: { $ifNull: ['$$item.lineTotal', { $multiply: [{ $ifNull: ['$$item.quantity', 0] }, { $ifNull: ['$$item.unitSalePrice', 0] }] }] }
+                    }
+                  }
+                },
                 [{
                   productId: '$productId',
                   productName: '$productName',

@@ -325,8 +325,9 @@ export async function GET(request: NextRequest) {
       if (sale.items && sale.items.length > 0) {
         // Multi-product sale
         sale.items.forEach((item: any) => {
-          const product = productData.find((p: any) => p._id.toString() === item.productId?.toString())
-          const category = product?.category || 'Unknown'
+          const productIdToFind = item.productId || item.itemId
+          const product = productData.find((p: any) => p._id.toString() === productIdToFind?.toString())
+          const category = product?.category || item.productDetails?.category || 'Unknown'
 
           if (!categoryStats[category]) {
             categoryStats[category] = { revenue: 0, profit: 0, cogs: 0 }
@@ -367,8 +368,8 @@ export async function GET(request: NextRequest) {
       if (sale.items && sale.items.length > 0) {
         // Multi-product sale
         sale.items.forEach((item: any) => {
-          const productId = item.productId?.toString()
-          const productName = item.productName || 'Unknown Product'
+          const productId = item.productId?.toString() || item.itemId?.toString()
+          const productName = item.name || item.productName || 'Unknown Product'
 
           if (!productId) return
 

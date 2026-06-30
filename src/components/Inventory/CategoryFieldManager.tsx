@@ -13,6 +13,7 @@ import {
   BriefcaseIcon
 } from "@heroicons/react/24/outline"
 import { useModal } from "@/context/ModalContext"
+import { useBusiness } from "@/context/BusinessContext"
 
 interface CustomField {
   name: string
@@ -27,6 +28,8 @@ interface CategoryFieldManagerProps {
 
 export default function CategoryFieldManager({ businessId, defaultTab = 'product-categories' }: CategoryFieldManagerProps) {
   const { showModal } = useModal()
+  const { currentBusiness } = useBusiness()
+  const activeBusinessId = businessId || currentBusiness?.id
   const [customProductCategories, setCustomProductCategories] = useState<string[]>([])
   const [customExpenseCategories, setCustomExpenseCategories] = useState<string[]>([])
   const [customServiceCategories, setCustomServiceCategories] = useState<string[]>([])
@@ -58,14 +61,16 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
   }, [activeTab])
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (activeBusinessId) {
+      fetchData()
+    }
+  }, [activeBusinessId])
 
   const fetchData = async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (businessId) params.append('businessId', businessId)
+      if (activeBusinessId) params.append('businessId', activeBusinessId)
 
       const response = await fetch(`/api/user/settings?${params.toString()}`)
       const data = await response.json()
@@ -95,7 +100,7 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
         body: JSON.stringify({
           type,
           category: newCategory.trim(),
-          businessId
+          businessId: activeBusinessId
         })
       })
 
@@ -132,7 +137,7 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
           type,
           oldCategory: oldName,
           newCategory: newName.trim(),
-          businessId
+          businessId: activeBusinessId
         })
       })
 
@@ -169,7 +174,7 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
-          const response = await fetch(`/api/user/categories?type=${type}&category=${encodeURIComponent(categoryName)}&businessId=${businessId || ''}`, {
+          const response = await fetch(`/api/user/categories?type=${type}&category=${encodeURIComponent(categoryName)}&businessId=${activeBusinessId || ''}`, {
             method: 'DELETE'
           })
 
@@ -201,7 +206,7 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
       const response = await fetch('/api/user/custom-fields', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: newField, entityType, businessId })
+        body: JSON.stringify({ field: newField, entityType, businessId: activeBusinessId })
       })
 
       const data = await response.json()
@@ -232,7 +237,7 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
           oldFieldName: oldName,
           field: updatedField,
           entityType,
-          businessId
+          businessId: activeBusinessId
         })
       })
 
@@ -265,7 +270,7 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
-          const response = await fetch(`/api/user/custom-fields?fieldName=${encodeURIComponent(fieldName)}&entityType=${entityType}&businessId=${businessId || ''}`, {
+          const response = await fetch(`/api/user/custom-fields?fieldName=${encodeURIComponent(fieldName)}&entityType=${entityType}&businessId=${activeBusinessId || ''}`, {
             method: 'DELETE'
           })
 
@@ -342,10 +347,10 @@ export default function CategoryFieldManager({ businessId, defaultTab = 'product
             let url = ''
             if (activeTab.includes('categories')) {
               const type = activeTab.split('-')[0] as 'product' | 'expense' | 'service'
-              url = `/api/user/categories?type=${type}&category=${encodeURIComponent(item)}&businessId=${businessId || ''}`
+              url = `/api/user/categories?type=${type}&category=${encodeURIComponent(item)}&businessId=${activeBusinessId || ''}`
             } else {
               const entityType = activeTab === 'fields' ? 'product' : 'service'
-              url = `/api/user/custom-fields?fieldName=${encodeURIComponent(item)}&entityType=${entityType}&businessId=${businessId || ''}`
+              url = `/api/user/custom-fields?fieldName=${encodeURIComponent(item)}&entityType=${entityType}&businessId=${activeBusinessId || ''}`
             }
 
             const response = await fetch(url, { method: 'DELETE' })
