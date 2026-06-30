@@ -231,7 +231,26 @@ export default function ImportBumpaModal({ isOpen, onClose }: ImportBumpaModalPr
               {/* Custom Field Selection */}
               {detectedCustomFields.length > 0 && (
                 <div className="p-4 border-b border-gray-100 bg-white">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Custom Fields to Import</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Custom Fields to Import</h4>
+                    <div className="flex gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomFields(new Set(detectedCustomFields))}
+                        className="text-blue-600 font-medium hover:underline"
+                      >
+                        Select all
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCustomFields(new Set())}
+                        className="text-blue-600 font-medium hover:underline"
+                      >
+                        Unmark all
+                      </button>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {detectedCustomFields.map(field => (
                       <button
